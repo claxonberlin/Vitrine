@@ -43,6 +43,28 @@ public struct BlenderAPI {
         }
     }
 
+    // MARK: - LTS designations
+
+    /// Scrapes blender.org's LTS page for the designated branches.
+    ///
+    /// This is the only published source: the build APIs carry no LTS flag,
+    /// and report every maintained branch — LTS or not — as
+    /// `release_cycle: "stable"`. Each LTS gets a card titled
+    /// "Blender X.Y LTS", which is what the pattern below anchors on.
+    ///
+    /// A page redesign that breaks the parse yields an empty set, which is
+    /// reported as `noLTSEntriesFound` so the caller keeps its cached list
+    /// rather than silently un-badging every LTS release.
+    public static func fetchLTSBranches() async throws -> LTSBranches {
+        let url = URL(string: "https://www.blender.org/download/lts/")!
+        let (data, response) = try await session.data(from: url)
+        try ensure2xx(response, url: url)
+        guard let html = String(data: data, encoding: .utf8),
+              let branches = LTSBranches.parse(html: html)
+        else { throw APIError.noLTSEntriesFound }
+        return branches
+    }
+
     // MARK: - Stable archive scraping
 
     /// Scrapes the full `/release/` archive for every `BlenderX.Y/` folder
@@ -202,10 +224,14 @@ public struct BlenderAPI {
 
     public enum APIError: LocalizedError {
         case httpStatus(Int, URL)
+        case noLTSEntriesFound
 
         public var errorDescription: String? {
             switch self {
-            case .httpStatus(let code, let url): return "HTTP \(code) for \(url.path)"
+            case .httpStatus(let code, let url):
+                return "HTTP \(code) for \(url.path)"
+            case .noLTSEntriesFound:
+                return "Could not read the LTS list from blender.org"
             }
         }
     }

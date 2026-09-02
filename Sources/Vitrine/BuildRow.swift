@@ -5,6 +5,7 @@ import VitrineKit
 struct InstalledRow: View {
     let store: BuildStore
     let build: InstalledBuild
+    let accent: Color
 
     var body: some View {
         HStack(spacing: 10) {
@@ -13,7 +14,7 @@ struct InstalledRow: View {
             }
 
             if let target = store.updateAvailable(for: build) {
-                UpdateButton(store: store, build: build, target: target)
+                UpdateButton(store: store, build: build, target: target, accent: accent)
             }
 
             StarButton(starred: build.pinned) { store.toggleStar(build) }
@@ -25,7 +26,8 @@ struct InstalledRow: View {
             BadgeRow(
                 riskLabel: (build.branch == .stable && build.riskId == "stable")
                     ? nil : build.riskLabel,
-                isLTS: LTS.contains(version: build.version)
+                isLTS: store.isLTS(build.version),
+                accent: accent
             )
 
             Spacer(minLength: 8)
@@ -42,8 +44,8 @@ struct InstalledRow: View {
             }
 
             // Stands in for the right-click context menu the macOS build had:
-            // SwiftCrossUI has no `contextMenu`, and an always-visible affordance
-            // is more discoverable on GNOME anyway.
+            // SwiftCrossUI has no `contextMenu`, and an always-visible
+            // affordance is more discoverable on GNOME anyway.
             Menu(Theme.Glyph.more) {
                 Button("Reveal in \(store.fileManagerName)") { store.reveal(build) }
                 Button(build.pinned ? "Unstar" : "Star") { store.toggleStar(build) }
@@ -65,18 +67,21 @@ struct InstalledRow: View {
 struct RemoteRow: View {
     let store: BuildStore
     let build: RemoteBuild
+    let branch: BuildBranch
+    let accent: Color
     var compact: Bool = false
 
     private var state: DownloadState { store.downloadState(build.id) }
-    private var installedBuild: InstalledBuild? { store.installedMatch(for: build) }
-    private var suppressRiskBadge: Bool { store.subTab == .stable && build.riskId == "stable" }
+    private var suppressRiskBadge: Bool { branch == .stable && build.riskId == "stable" }
 
     var body: some View {
         HStack(spacing: 10) {
             CatalogueActionColumn(
                 store: store,
                 build: build,
-                installedBuild: installedBuild,
+                branch: branch,
+                accent: accent,
+                installedBuild: store.installedMatch(for: build),
                 state: state
             )
 
@@ -86,7 +91,8 @@ struct RemoteRow: View {
 
             BadgeRow(
                 riskLabel: suppressRiskBadge ? nil : build.riskLabel,
-                isLTS: LTS.contains(version: build.version)
+                isLTS: store.isLTS(build.version),
+                accent: accent
             )
 
             Spacer(minLength: 8)
@@ -141,6 +147,8 @@ struct RemoteRow: View {
 struct RemoteGroupHeaderRow: View {
     let store: BuildStore
     let group: RemoteBuildGroup
+    let branch: BuildBranch
+    let accent: Color
 
     private var isExpanded: Bool { store.expandedMinorKeys.contains(group.minorKey) }
 
@@ -149,6 +157,8 @@ struct RemoteGroupHeaderRow: View {
             CatalogueActionColumn(
                 store: store,
                 build: group.latest,
+                branch: branch,
+                accent: accent,
                 installedBuild: store.installedMatch(for: group.latest),
                 state: store.downloadState(group.latest.id)
             )
@@ -163,9 +173,10 @@ struct RemoteGroupHeaderRow: View {
             }
 
             BadgeRow(
-                riskLabel: (store.subTab == .stable && group.latest.riskId == "stable")
+                riskLabel: (branch == .stable && group.latest.riskId == "stable")
                     ? nil : group.latest.riskLabel,
-                isLTS: LTS.contains(version: group.latest.version)
+                isLTS: store.isLTS(group.latest.version),
+                accent: accent
             )
 
             Spacer(minLength: 8)
@@ -191,6 +202,8 @@ struct RemoteGroupHeaderRow: View {
 struct CatalogueActionColumn: View {
     let store: BuildStore
     let build: RemoteBuild
+    let branch: BuildBranch
+    let accent: Color
     let installedBuild: InstalledBuild?
     let state: DownloadState
 
@@ -200,14 +213,14 @@ struct CatalogueActionColumn: View {
         } else {
             switch state {
             case .idle:
-                PillButton(title: "Get", tint: Theme.accent) { store.install(build) }
+                PillButton(title: "Get", tint: accent) { store.install(build, into: branch) }
             case .queued, .installing:
                 ProgressView()
                     .frame(width: Theme.Metrics.actionWidth, height: Theme.Metrics.actionHeight)
             case .downloading:
                 PillButton(title: Theme.Glyph.stop, tint: .red) { store.cancelDownload(build) }
             case .failed:
-                PillButton(title: "Retry", tint: .orange) { store.install(build) }
+                PillButton(title: "Retry", tint: .orange) { store.install(build, into: branch) }
             }
         }
     }
@@ -218,6 +231,7 @@ struct UpdateButton: View {
     let store: BuildStore
     let build: InstalledBuild
     let target: RemoteBuild
+    let accent: Color
 
     private var inProgress: Bool {
         guard let remoteID = store.updatingTargets[build.id] else { return false }
@@ -231,7 +245,7 @@ struct UpdateButton: View {
             Button(action: { store.updateInstall(from: build, to: target) }) {
                 Text(Theme.Glyph.update)
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(Theme.accent)
+                    .foregroundColor(accent)
             }
             .buttonStyle(.plain)
             .help("Update to \(target.version) (keeps preferences)")
@@ -282,14 +296,15 @@ struct PillButton: View {
 struct BadgeRow: View {
     let riskLabel: String?
     let isLTS: Bool
+    let accent: Color
 
     var body: some View {
         HStack(spacing: 4) {
             if let riskLabel {
-                Badge(text: riskLabel, accent: false)
+                Badge(text: riskLabel, tint: nil)
             }
             if isLTS {
-                Badge(text: "LTS", accent: true)
+                Badge(text: "LTS", tint: accent)
             }
         }
     }
@@ -297,15 +312,16 @@ struct BadgeRow: View {
 
 struct Badge: View {
     let text: String
-    let accent: Bool
+    /// nil renders the neutral variant.
+    let tint: Color?
 
     var body: some View {
         Text(text)
             .font(.system(size: 9, weight: .semibold))
-            .foregroundColor(accent ? Theme.accent : Theme.secondaryText)
+            .foregroundColor(tint ?? Theme.secondaryText)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(accent ? Theme.accent.opacity(0.18) : Theme.badgeBackground)
+            .background((tint ?? Theme.badgeBackground).opacity(tint == nil ? 1.0 : 0.18))
             .cornerRadius(4)
     }
 }

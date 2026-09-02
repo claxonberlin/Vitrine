@@ -52,11 +52,46 @@ final class VersionTests: XCTestCase {
 }
 
 final class LTSTests: XCTestCase {
-    func testKnownBranches() {
-        XCTAssertTrue(LTS.contains(version: "4.2.3"))
-        XCTAssertTrue(LTS.contains(version: "3.3.0"))
-        XCTAssertFalse(LTS.contains(version: "4.1.1"))
-        XCTAssertFalse(LTS.contains(version: "not-a-version"))
+    private let branches = LTSBranches.fallback
+
+    func testMatchesOnTheMinorBranchNotTheExactVersion() {
+        XCTAssertTrue(branches.contains(version: "4.2.3"))
+        XCTAssertTrue(branches.contains(version: "3.3.0"))
+        XCTAssertTrue(branches.contains(version: "5.2.1"))
+        XCTAssertFalse(branches.contains(version: "4.1.1"))
+        XCTAssertFalse(branches.contains(version: "5.1.0"))
+        XCTAssertFalse(branches.contains(version: "not-a-version"))
+    }
+
+    /// blender.org publishes no LTS flag in any build API — every maintained
+    /// branch reports `release_cycle: "stable"` — so the list is scraped from
+    /// the LTS page. This pins the shape that scrape depends on.
+    func testParsesTheLTSPageMarkup() {
+        let html = """
+            <div class="cards-item-title">Blender 5.2 LTS</div>
+            <img src="/5_2.webp" alt="Blender 5.2 LTS">
+            <div class="cards-item-title">Blender 4.5 LTS</div>
+            <div class="cards-item-title">Blender 2.83 LTS</div>
+            <p>Initially released in June 2020, Blender 2.83 LTS is the first.</p>
+            """
+        let parsed = LTSBranches.parse(html: html)
+        XCTAssertEqual(parsed?.minorKeys, ["5.2", "4.5", "2.83"])
+    }
+
+    func testIgnoresVersionsThatAreNotMarkedLTS() {
+        let html = """
+            <div class="cards-item-title">Blender 5.2 LTS</div>
+            <a href="/download/releases/5-1/">Blender 5.1</a>
+            <a href="/download/releases/4-3/">Blender 4.3</a>
+            """
+        XCTAssertEqual(LTSBranches.parse(html: html)?.minorKeys, ["5.2"])
+    }
+
+    /// A redesign that breaks the scrape must yield nil, so the caller keeps
+    /// its cached list instead of silently un-badging every LTS release.
+    func testReturnsNilWhenNothingMatches() {
+        XCTAssertNil(LTSBranches.parse(html: "<html><body>Downloads</body></html>"))
+        XCTAssertNil(LTSBranches.parse(html: ""))
     }
 }
 

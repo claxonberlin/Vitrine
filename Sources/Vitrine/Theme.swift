@@ -7,10 +7,13 @@ import SwiftCrossUI
 /// light and dark on AppKit and GTK alike — SwiftCrossUI has no semantic
 /// system-colour palette to defer to.
 enum Theme {
-    static let accent = Color(red: 0.0, green: 0.48, blue: 1.0)
+    /// The library window keeps the original blue.
+    static let vitrineAccent = Color(red: 0.0, green: 0.48, blue: 1.0)
+    /// The catalogue window takes Blender's brand orange (#EA7600), so the two
+    /// windows are distinguishable at a glance when both are open.
+    static let catalogueAccent = Color(red: 0.918, green: 0.463, blue: 0.0)
 
     static let rowBackground = Color(white: 0.5, opacity: 0.12)
-    static let rowBorder = Color(white: 0.5, opacity: 0.20)
     static let badgeBackground = Color(white: 0.5, opacity: 0.22)
 
     static let secondaryText = Color(white: 0.5, opacity: 0.95)
@@ -22,8 +25,8 @@ enum Theme {
         static let actionWidth = 76
         static let actionHeight = 26
         static let corner = 8
-        static let windowMinWidth = 460
-        static let windowMinHeight = 380
+        static let windowMinWidth = 470
+        static let windowMinHeight = 400
     }
 
     /// Text stand-ins for what were SF Symbols on macOS. SwiftCrossUI's
@@ -41,5 +44,13 @@ enum Theme {
         static let expanded = "⌄"
         static let collapsed = "›"
         static let more = "⋯"
+        static let otherWindow = "⧉"
+    }
+
+    /// Window identifiers, shared between the scene declarations and the
+    /// buttons that reopen a closed window.
+    enum WindowID {
+        static let vitrine = "vitrine"
+        static let catalogue = "catalogue"
     }
 }

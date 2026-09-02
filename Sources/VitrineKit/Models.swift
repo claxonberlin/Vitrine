@@ -13,22 +13,6 @@ extension BuildBranch: CustomStringConvertible {
     public var description: String { title }
 }
 
-extension TopTab: CustomStringConvertible {
-    public var description: String { title }
-}
-
-public enum TopTab: String, CaseIterable, Identifiable, Sendable {
-    case installed, library
-
-    public var id: String { rawValue }
-    public var title: String {
-        switch self {
-        case .installed: return "Vitrine"
-        case .library: return "Catalogue"
-        }
-    }
-}
-
 /// Numeric version that compares as a tuple of components.
 ///
 /// Tolerant of trailing letters used by old Blender releases (e.g. `2.79b`):
@@ -98,18 +82,44 @@ public struct Version: Hashable, Comparable, Codable, CustomStringConvertible, S
     }
 }
 
-/// Blender designates specific X.Y branches as Long-Term Support releases
-/// (two years of bug-fix updates). The set is announced per cycle; the
-/// current published list (as of 2026) is hardcoded here. New entries can
-/// be added when Blender announces them.
-public enum LTS {
-    public static let branches: Set<String> = [
-        "2.83", "2.93", "3.3", "3.6", "4.2", "4.5"
-    ]
+/// The X.Y branches Blender designates as Long-Term Support (two years of
+/// bug-fix updates).
+///
+/// There is no LTS flag in any of Blender's build APIs — builder.blender.org
+/// reports every maintained branch as `release_cycle: "stable"`, LTS or not —
+/// so the authoritative source is the LTS page on blender.org. It is fetched
+/// at startup and cached in settings; `fallback` only covers a first run with
+/// no network.
+public struct LTSBranches: Sendable, Codable, Equatable {
+    public var minorKeys: Set<String>
 
-    public static func contains(version raw: String) -> Bool {
+    public init(minorKeys: Set<String>) {
+        self.minorKeys = minorKeys
+    }
+
+    /// Last known published list. Kept current on a best-effort basis, but it
+    /// is a cold-start fallback, not the source of truth.
+    public static let fallback = LTSBranches(
+        minorKeys: ["2.83", "2.93", "3.3", "3.6", "4.2", "4.5", "5.2"]
+    )
+
+    public func contains(version raw: String) -> Bool {
         guard let v = Version(raw), let key = v.minorKey else { return false }
-        return branches.contains(key)
+        return minorKeys.contains(key)
+    }
+
+    /// Extracts the designated branches from the LTS page's markup.
+    ///
+    /// Each LTS gets a card titled "Blender X.Y LTS"; the same string also
+    /// appears as the card image's alt text, which is harmless since the
+    /// results are a set. Returns nil when nothing matches, so a page redesign
+    /// leaves the caller's cached list intact rather than un-badging every
+    /// LTS release.
+    public static func parse(html: String) -> LTSBranches? {
+        let keys = Set(
+            html.matches(of: #/Blender\s+(\d+\.\d+)\s+LTS/#).map { String($0.output.1) }
+        )
+        return keys.isEmpty ? nil : LTSBranches(minorKeys: keys)
     }
 }
 

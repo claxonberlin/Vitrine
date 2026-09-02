@@ -3,6 +3,8 @@ import VitrineKit
 
 struct SettingsView: View {
     let store: BuildStore
+    /// Tints the sheet to match whichever window opened it.
+    let accent: Color
     @Binding var isPresented: Bool
 
     @State private var minVersionDraft = ""
@@ -12,7 +14,9 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Preferences").font(.system(size: 15, weight: .semibold))
+                Text("Preferences")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(accent)
                 Spacer(minLength: 8)
                 Button("Done") { isPresented = false }
             }
