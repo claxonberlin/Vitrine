@@ -15,6 +15,9 @@ enum Theme {
 
     static let rowBackground = Color(white: 0.5, opacity: 0.12)
     static let badgeBackground = Color(white: 0.5, opacity: 0.22)
+    /// Container fill behind grouped controls (toolbar cluster, segmented picker).
+    static let controlBackground = Color(white: 0.5, opacity: 0.14)
+    static let hoverFill = Color(white: 0.5, opacity: 0.18)
 
     static let secondaryText = Color(white: 0.5, opacity: 0.95)
     static let tertiaryText = Color(white: 0.5, opacity: 0.70)

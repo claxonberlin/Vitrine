@@ -163,14 +163,9 @@ struct RemoteGroupHeaderRow: View {
                 state: store.downloadState(group.latest.id)
             )
 
-            HStack(spacing: 5) {
-                Text(group.minorKey)
-                    .font(.system(size: 14, weight: .semibold))
-                    .fontDesign(.monospaced)
-                Text(isExpanded ? Theme.Glyph.expanded : Theme.Glyph.collapsed)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(Theme.secondaryText)
-            }
+            Text(group.minorKey)
+                .font(.system(size: 14, weight: .semibold))
+                .fontDesign(.monospaced)
 
             BadgeRow(
                 riskLabel: (branch == .stable && group.latest.riskId == "stable")
@@ -189,6 +184,11 @@ struct RemoteGroupHeaderRow: View {
                     .font(.system(size: 9))
                     .foregroundColor(Theme.tertiaryText)
             }
+
+            Text(isExpanded ? Theme.Glyph.expanded : Theme.Glyph.collapsed)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Theme.tertiaryText)
+                .frame(minWidth: 12, maxWidth: 12)
         }
         .padding(.horizontal, 12)
         .frame(height: Theme.Metrics.rowHeight)

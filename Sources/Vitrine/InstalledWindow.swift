@@ -13,19 +13,19 @@ struct InstalledWindow: View {
     private let accent = Theme.vitrineAccent
 
     var body: some View {
-        VStack(spacing: 8) {
-            toolbar
+        VStack(spacing: 10) {
+            header
             ErrorBanner(store: store)
-            BranchPicker(branch: $branch)
+            BranchPicker(branch: $branch, accent: accent)
             list
         }
         .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
+        .padding(.bottom, 12)
         .frame(
             minWidth: Double(Theme.Metrics.windowMinWidth),
             minHeight: Double(Theme.Metrics.windowMinHeight)
         )
+        .unifiedTitleBar()
         .onAppear {
             Task { await store.refreshAll() }
         }
@@ -34,24 +34,23 @@ struct InstalledWindow: View {
         }
     }
 
-    /// The window title now lives in the title bar, so this row carries only
-    /// actions and sits right-aligned.
-    private var toolbar: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-
-            IconButton(glyph: Theme.Glyph.add,
-                       help: "Add a Blender build you already have",
-                       accent: accent) {
-                pickExistingBuild()
-            }
-            IconButton(glyph: Theme.Glyph.settings, help: "Preferences", accent: accent) {
-                showingSettings = true
-            }
-            IconButton(glyph: Theme.Glyph.otherWindow,
-                       help: "Show the Catalogue window",
-                       accent: accent) {
-                openWindow(id: Theme.WindowID.catalogue)
+    private var header: some View {
+        HeaderBar(title: "Vitrine") {
+            ToolbarCluster {
+                IconButton(glyph: Theme.Glyph.add,
+                           help: "Add a Blender build you already have",
+                           accent: accent) {
+                    pickExistingBuild()
+                }
+                IconButton(glyph: Theme.Glyph.settings,
+                           help: "Preferences", accent: accent) {
+                    showingSettings = true
+                }
+                IconButton(glyph: Theme.Glyph.otherWindow,
+                           help: "Show the Catalogue window",
+                           accent: accent) {
+                    openWindow(id: Theme.WindowID.catalogue)
+                }
             }
         }
     }

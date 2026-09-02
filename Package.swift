@@ -19,7 +19,12 @@ let package = Package(
             dependencies: [
                 "VitrineKit",
                 .product(name: "SwiftCrossUI", package: "swift-cross-ui"),
-                .product(name: "DefaultBackend", package: "swift-cross-ui")
+                .product(name: "DefaultBackend", package: "swift-cross-ui"),
+                // Only for the NSWindow escape hatch in WindowChrome.swift:
+                // SwiftCrossUI exposes no window-chrome API, and the unified
+                // title bar is what makes the app look at home on macOS.
+                .product(name: "AppKitBackend", package: "swift-cross-ui",
+                         condition: .when(platforms: [.macOS]))
             ],
             linkerSettings: [
                 // Embeds Info.plist into __TEXT,__info_plist so `swift run` on

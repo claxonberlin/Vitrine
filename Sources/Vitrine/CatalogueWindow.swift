@@ -12,45 +12,50 @@ struct CatalogueWindow: View {
     private let accent = Theme.catalogueAccent
 
     var body: some View {
-        VStack(spacing: 8) {
-            toolbar
+        VStack(spacing: 10) {
+            header
             ErrorBanner(store: store)
-            BranchPicker(branch: $branch)
+            BranchPicker(branch: $branch, accent: accent)
             list
         }
         .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
+        .padding(.bottom, 12)
         .frame(
             minWidth: Double(Theme.Metrics.windowMinWidth),
             minHeight: Double(Theme.Metrics.windowMinHeight)
         )
+        .unifiedTitleBar()
         .sheet(isPresented: $showingSettings) {
             SettingsView(store: store, accent: accent, isPresented: $showingSettings)
         }
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-
-            if store.isFetching {
-                ProgressView().frame(width: 16, height: 16)
-            }
-
-            IconButton(glyph: Theme.Glyph.refresh,
-                       help: "Refresh the catalogue",
-                       accent: accent) {
-                Task { await store.refreshAll() }
-            }
-            .disabled(store.isFetching)
-            IconButton(glyph: Theme.Glyph.settings, help: "Preferences", accent: accent) {
-                showingSettings = true
-            }
-            IconButton(glyph: Theme.Glyph.otherWindow,
-                       help: "Show the Vitrine window",
-                       accent: accent) {
-                openWindow(id: Theme.WindowID.vitrine)
+    private var header: some View {
+        HeaderBar(title: "Catalogue") {
+            ToolbarCluster {
+                // Deliberately not `.disabled(store.isFetching)`: AppKit draws
+                // a disabled plain button as a filled blue box, which flashed
+                // on every refresh — and in the orange window, no less. The
+                // spinner both replaces the control and reports progress.
+                if store.isFetching {
+                    ProgressView()
+                        .frame(minWidth: 26, maxWidth: 26, minHeight: 24, maxHeight: 24)
+                } else {
+                    IconButton(glyph: Theme.Glyph.refresh,
+                               help: "Refresh the catalogue",
+                               accent: accent) {
+                        Task { await store.refreshAll() }
+                    }
+                }
+                IconButton(glyph: Theme.Glyph.settings,
+                           help: "Preferences", accent: accent) {
+                    showingSettings = true
+                }
+                IconButton(glyph: Theme.Glyph.otherWindow,
+                           help: "Show the Vitrine window",
+                           accent: accent) {
+                    openWindow(id: Theme.WindowID.vitrine)
+                }
             }
         }
     }
