@@ -44,7 +44,11 @@ public final class DownloadManager: @unchecked Sendable {
         config.timeoutIntervalForRequest = 60
         config.timeoutIntervalForResource = 60 * 60
         config.httpMaximumConnectionsPerHost = 6
+        #if canImport(Darwin)
+        // A scheduling hint that only exists in Apple's URLSession; the
+        // swift-corelibs implementation has no equivalent.
         config.networkServiceType = .responsiveData
+        #endif
         let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
 
         return try await withTaskCancellationHandler {

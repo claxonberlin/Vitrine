@@ -142,11 +142,11 @@ struct LinuxIntegration: PlatformIntegration {
             "array:string:\(url.absoluteString)", "string:"
         ])
         if shown?.ok == true { return }
-        try? await Shell.run("xdg-open", [url.deletingLastPathComponent().path])
+        _ = try? await Shell.run("xdg-open", [url.deletingLastPathComponent().path])
     }
 
     func openURL(_ url: URL) async {
-        try? await Shell.run("xdg-open", [url.absoluteString])
+        _ = try? await Shell.run("xdg-open", [url.absoluteString])
     }
 
     // MARK: - System wiring
@@ -196,12 +196,12 @@ struct LinuxIntegration: PlatformIntegration {
 
     private func refreshDesktopDatabase() async {
         guard await Shell.exists("update-desktop-database") else { return }
-        try? await Shell.run("update-desktop-database", [applicationsDir.path])
+        _ = try? await Shell.run("update-desktop-database", [applicationsDir.path])
     }
 
     private func updateMimeDefault(for build: InstalledBuild?) async {
         guard build != nil, await Shell.exists("xdg-mime") else { return }
-        try? await Shell.run("xdg-mime", ["default", Self.desktopFileName, Self.blendMimeType])
+        _ = try? await Shell.run("xdg-mime", ["default", Self.desktopFileName, Self.blendMimeType])
     }
 
     private func updateSymlink(for build: InstalledBuild?) {
@@ -247,7 +247,7 @@ struct LinuxIntegration: PlatformIntegration {
         if build != nil { favorites.append(Self.desktopFileName) }
 
         let encoded = "[" + favorites.map { "'\($0)'" }.joined(separator: ", ") + "]"
-        try? await Shell.run("gsettings", ["set", "org.gnome.shell", "favorite-apps", encoded])
+        _ = try? await Shell.run("gsettings", ["set", "org.gnome.shell", "favorite-apps", encoded])
     }
 
     /// `gsettings get` prints a GVariant array: `['a.desktop', 'b.desktop']`.

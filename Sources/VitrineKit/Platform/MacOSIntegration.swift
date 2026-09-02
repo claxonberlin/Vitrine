@@ -216,7 +216,7 @@ struct MacOSIntegration: PlatformIntegration {
 
         dock.set(apps, forKey: "persistent-apps")
         CFPreferencesAppSynchronize("com.apple.dock" as CFString)
-        try? await Shell.run("killall", ["Dock"])
+        _ = try? await Shell.run("killall", ["Dock"])
     }
 
     private func tileURLString(_ tile: [String: Any]) -> String? {
@@ -272,7 +272,7 @@ struct MacOSIntegration: PlatformIntegration {
 
     private func detach(_ mountPoint: String) async {
         // Best-effort; -force covers files the copy may still hold open.
-        try? await Shell.run("hdiutil", ["detach", mountPoint, "-force"])
+        _ = try? await Shell.run("hdiutil", ["detach", mountPoint, "-force"])
     }
 }
 #endif
