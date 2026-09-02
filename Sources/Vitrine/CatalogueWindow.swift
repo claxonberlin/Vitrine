@@ -22,8 +22,8 @@ struct CatalogueWindow: View {
         .padding(.top, 8)
         .padding(.bottom, 10)
         .frame(
-            minWidth: Theme.Metrics.windowMinWidth,
-            minHeight: Theme.Metrics.windowMinHeight
+            minWidth: Double(Theme.Metrics.windowMinWidth),
+            minHeight: Double(Theme.Metrics.windowMinHeight)
         )
         .sheet(isPresented: $showingSettings) {
             SettingsView(store: store, accent: accent, isPresented: $showingSettings)

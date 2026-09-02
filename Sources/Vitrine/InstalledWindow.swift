@@ -23,8 +23,8 @@ struct InstalledWindow: View {
         .padding(.top, 8)
         .padding(.bottom, 10)
         .frame(
-            minWidth: Theme.Metrics.windowMinWidth,
-            minHeight: Theme.Metrics.windowMinHeight
+            minWidth: Double(Theme.Metrics.windowMinWidth),
+            minHeight: Double(Theme.Metrics.windowMinHeight)
         )
         .onAppear {
             Task { await store.refreshAll() }
