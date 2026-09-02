@@ -63,7 +63,9 @@ struct InstalledRow: View {
     }
 }
 
-/// A row for a build in the remote catalogue.
+/// A row for a build in the remote catalogue. The version lives inside the
+/// download button rather than beside it — the button is what you aim at, and
+/// naming the version on it says exactly what the click will fetch.
 struct RemoteRow: View {
     let store: BuildStore
     let build: RemoteBuild
@@ -82,12 +84,9 @@ struct RemoteRow: View {
                 branch: branch,
                 accent: accent,
                 installedBuild: store.installedMatch(for: build),
-                state: state
+                state: state,
+                compact: compact
             )
-
-            Text(build.version)
-                .font(.system(size: 13, weight: .medium))
-                .fontDesign(.monospaced)
 
             BadgeRow(
                 riskLabel: suppressRiskBadge ? nil : build.riskLabel,
@@ -142,8 +141,9 @@ struct RemoteRow: View {
     }
 }
 
-/// Header row summarising a minor-version group. "Get" installs the group's
-/// latest patch; tapping elsewhere folds or unfolds the children.
+/// Header row summarising a minor-version group. The button fetches the
+/// group's newest patch and names it; the label beside it is the series.
+/// Tapping elsewhere folds or unfolds the children.
 struct RemoteGroupHeaderRow: View {
     let store: BuildStore
     let group: RemoteBuildGroup
@@ -160,7 +160,8 @@ struct RemoteGroupHeaderRow: View {
                 branch: branch,
                 accent: accent,
                 installedBuild: store.installedMatch(for: group.latest),
-                state: store.downloadState(group.latest.id)
+                state: store.downloadState(group.latest.id),
+                compact: false
             )
 
             Text(group.minorKey)
@@ -176,14 +177,9 @@ struct RemoteGroupHeaderRow: View {
 
             Spacer(minLength: 8)
 
-            VStack(alignment: .trailing, spacing: 1) {
-                Text("Latest \(group.latest.version)")
-                    .font(.system(size: 11))
-                    .foregroundColor(Theme.secondaryText)
-                Text("\(group.builds.count) versions")
-                    .font(.system(size: 9))
-                    .foregroundColor(Theme.tertiaryText)
-            }
+            Text("\(group.builds.count) versions")
+                .font(.system(size: 10))
+                .foregroundColor(Theme.tertiaryText)
 
             Text(isExpanded ? Theme.Glyph.expanded : Theme.Glyph.collapsed)
                 .font(.system(size: 12, weight: .bold))
@@ -197,8 +193,8 @@ struct RemoteGroupHeaderRow: View {
     }
 }
 
-/// The leading button shared by catalogue rows and group headers: Get, cancel,
-/// retry, or "Put Back" when the build is already installed.
+/// The leading control shared by catalogue rows and group headers: download,
+/// cancel, retry, or "Put Back" when the build is already installed.
 struct CatalogueActionColumn: View {
     let store: BuildStore
     let build: RemoteBuild
@@ -206,23 +202,112 @@ struct CatalogueActionColumn: View {
     let accent: Color
     let installedBuild: InstalledBuild?
     let state: DownloadState
+    let compact: Bool
+
+    private var height: Int {
+        compact ? Theme.Metrics.compactActionHeight : Theme.Metrics.actionHeight
+    }
 
     var body: some View {
         if let installed = installedBuild {
-            PillButton(title: "Put Back", tint: .red) { store.uninstall(installed) }
+            PillButton(title: "Put Back", tint: .red, height: height) {
+                store.uninstall(installed)
+            }
         } else {
             switch state {
             case .idle:
-                PillButton(title: "Get", tint: accent) { store.install(build, into: branch) }
+                DownloadButton(version: build.version, tint: accent, height: height) {
+                    store.install(build, into: branch)
+                }
             case .queued, .installing:
                 ProgressView()
-                    .frame(width: Theme.Metrics.actionWidth, height: Theme.Metrics.actionHeight)
+                    .frame(
+                        minWidth: Double(Theme.Metrics.actionWidth),
+                        maxWidth: Double(Theme.Metrics.actionWidth),
+                        minHeight: Double(height), maxHeight: Double(height)
+                    )
             case .downloading:
-                PillButton(title: Theme.Glyph.stop, tint: .red) { store.cancelDownload(build) }
+                PillButton(title: Theme.Glyph.stop, tint: .red, height: height) {
+                    store.cancelDownload(build)
+                }
             case .failed:
-                PillButton(title: "Retry", tint: .orange) { store.install(build, into: branch) }
+                PillButton(title: "Retry", tint: .orange, height: height) {
+                    store.install(build, into: branch)
+                }
             }
         }
+    }
+}
+
+/// The catalogue's primary action: a download arrow and the exact version it
+/// will fetch.
+struct DownloadButton: View {
+    let version: String
+    let tint: Color
+    let height: Int
+    let action: @MainActor @Sendable () -> Void
+
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(Theme.Glyph.download)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+                Text(version)
+                    .font(.system(size: 12, weight: .semibold))
+                    .fontDesign(.monospaced)
+                    .foregroundColor(.white)
+            }
+            .frame(
+                minWidth: Double(Theme.Metrics.actionWidth),
+                maxWidth: Double(Theme.Metrics.actionWidth),
+                minHeight: Double(height),
+                maxHeight: Double(height)
+            )
+            .background(
+                tint.opacity(hovered ? 1.0 : 0.88)
+                    .cornerRadius(Theme.Metrics.buttonCorner)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .help("Download Blender \(version)")
+    }
+}
+
+/// Text-only action button. Hover swaps the fill rather than scaling it —
+/// SwiftCrossUI has no animation or transform modifiers, so state changes read
+/// as instant colour steps.
+struct PillButton: View {
+    let title: String
+    let tint: Color
+    var height: Int = Theme.Metrics.actionHeight
+    let action: @MainActor @Sendable () -> Void
+
+    @State private var hovered = false
+
+    var body: some View {
+        // Frame and fill sit inside the label so the whole pill is clickable,
+        // not just the text.
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(tint == .yellow ? .black : .white)
+                .frame(
+                    minWidth: Double(Theme.Metrics.pillWidth),
+                    maxWidth: Double(Theme.Metrics.pillWidth),
+                    minHeight: Double(height),
+                    maxHeight: Double(height)
+                )
+                .background(
+                    tint.opacity(hovered ? 1.0 : 0.88)
+                        .cornerRadius(Theme.Metrics.buttonCorner)
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
     }
 }
 
@@ -240,12 +325,13 @@ struct UpdateButton: View {
 
     var body: some View {
         if inProgress {
-            ProgressView().frame(width: 18, height: 18)
+            ProgressView().frame(width: 22, height: 22)
         } else {
             Button(action: { store.updateInstall(from: build, to: target) }) {
                 Text(Theme.Glyph.update)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(accent)
+                    .frame(minWidth: 22, maxWidth: 22, minHeight: 22, maxHeight: 22)
             }
             .buttonStyle(.plain)
             .help("Update to \(target.version) (keeps preferences)")
@@ -261,35 +347,12 @@ struct StarButton: View {
     var body: some View {
         Button(action: action) {
             Text(starred ? Theme.Glyph.starFilled : Theme.Glyph.starEmpty)
-                .font(.system(size: 14))
+                .font(.system(size: 15))
                 .foregroundColor(starred ? .yellow : Theme.secondaryText)
+                .frame(minWidth: 22, maxWidth: 22, minHeight: 22, maxHeight: 22)
         }
         .buttonStyle(.plain)
         .help(starred ? "Unstar" : "Star (sets default .blend app and adds to PATH)")
-    }
-}
-
-/// Pill-shaped action button. Hover swaps the fill rather than scaling it —
-/// SwiftCrossUI has no animation or transform modifiers, so state changes read
-/// as instant colour steps.
-struct PillButton: View {
-    let title: String
-    let tint: Color
-    let action: @MainActor @Sendable () -> Void
-
-    @State private var hovered = false
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(tint == .yellow ? .black : .white)
-        }
-        .buttonStyle(.plain)
-        .frame(width: Theme.Metrics.actionWidth, height: Theme.Metrics.actionHeight)
-        .background(tint.opacity(hovered ? 1.0 : 0.85))
-        .cornerRadius(6)
-        .onHover { hovered = $0 }
     }
 }
 
@@ -321,8 +384,11 @@ struct Badge: View {
             .foregroundColor(tint ?? Theme.secondaryText)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background((tint ?? Theme.badgeBackground).opacity(tint == nil ? 1.0 : 0.18))
-            .cornerRadius(4)
+            .background(
+                (tint ?? Theme.badgeBackground)
+                    .opacity(tint == nil ? 1.0 : 0.18)
+                    .cornerRadius(Theme.Metrics.badgeCorner)
+            )
     }
 }
 

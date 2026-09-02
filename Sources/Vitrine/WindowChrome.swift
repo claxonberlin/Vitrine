@@ -25,16 +25,6 @@ enum WindowChrome {
         return false
         #endif
     }
-
-    /// Space reserved at the leading edge for the traffic lights, which sit on
-    /// top of our content once the title bar goes full-size.
-    static var trafficLightInset: Int {
-        #if os(macOS)
-        return 62
-        #else
-        return 0
-        #endif
-    }
 }
 
 extension View {
@@ -89,11 +79,45 @@ private final class ConfiguringView: NSView {
         // is only hidden from the title bar, where we draw it ourselves.
         window.titleVisibility = .hidden
 
-        // Without this a control adopts first-responder status at launch and
-        // renders a focus ring — the blue rectangle around the refresh button.
-        window.makeFirstResponder(nil)
+        // An empty toolbar in compact style is what makes the traffic lights
+        // line up with our header. AppKit only vertically centres them when a
+        // toolbar gives the title bar its taller layout; without one they stay
+        // pinned near the top of a 28pt bar and sit noticeably high against a
+        // 38pt header row.
+        window.toolbar = NSToolbar(identifier: "app.vitrine.chrome")
+        window.toolbarStyle = .unifiedCompact
+
+        clearButtonFocus(in: window)
+        // The initial first responder is assigned after this runs, so clearing
+        // once here isn't enough.
+        DispatchQueue.main.async { clearButtonFocus(in: window) }
+        // Selector-based rather than closure-based: the observer is removed
+        // automatically when this view is deallocated, and the callback lands
+        // on NSView's main-actor isolation without a Sendable dance.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidBecomeKey(_:)),
+            name: NSWindow.didBecomeKeyNotification,
+            object: window
+        )
+    }
+
+    @objc private func windowDidBecomeKey(_ note: Notification) {
+        guard let window = note.object as? NSWindow else { return }
+        clearButtonFocus(in: window)
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+/// AppKit gives first-responder status to the first control in a window, and
+/// renders that control highlighted — the lit-up "+" in the library window and
+/// the blue box on the refresh button. Only buttons are cleared, so the
+/// settings text field can still take focus normally.
+@MainActor
+private func clearButtonFocus(in window: NSWindow) {
+    if window.firstResponder is NSButton {
+        window.makeFirstResponder(nil)
+    }
 }
 #endif

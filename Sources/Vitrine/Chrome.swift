@@ -13,16 +13,23 @@ struct HeaderBar<Actions: View>: View {
     @ViewBuilder var actions: () -> Actions
 
     var body: some View {
-        HStack(spacing: 10) {
+        // The title is centred across the full width and the actions are laid
+        // over it on the trailing side, so the title stays optically centred
+        // in the window rather than in the space left over beside the actions.
+        ZStack {
             if WindowChrome.drawsOwnTitle {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))
             }
-            Spacer(minLength: 8)
-            actions()
+            HStack(spacing: 10) {
+                Spacer(minLength: 0)
+                actions()
+            }
         }
-        .padding(.leading, WindowChrome.trafficLightInset)
-        .frame(minHeight: 38, maxHeight: 38)
+        .frame(
+            minHeight: Double(Theme.Metrics.headerHeight),
+            maxHeight: Double(Theme.Metrics.headerHeight)
+        )
     }
 }
 
@@ -37,7 +44,7 @@ struct ToolbarCluster<Content: View>: View {
             content()
         }
         .padding(3)
-        .background(Theme.controlBackground.cornerRadius(9))
+        .background(Theme.controlBackground.cornerRadius(Theme.Metrics.corner))
     }
 }
 
@@ -52,14 +59,25 @@ struct IconButton: View {
     @State private var hovered = false
 
     var body: some View {
+        // Sizing and fill live *inside* the label: applied outside the Button
+        // they decorate the frame but leave the clickable area the size of the
+        // glyph, so only the glyph itself responds.
         Button(action: action) {
             Text(glyph)
-                .font(.system(size: 13))
+                .font(.system(size: Double(Theme.Metrics.iconGlyphSize)))
                 .foregroundColor(hovered ? accent : Theme.secondaryText)
+                .frame(
+                    minWidth: Double(Theme.Metrics.iconButtonSize),
+                    maxWidth: Double(Theme.Metrics.iconButtonSize),
+                    minHeight: Double(Theme.Metrics.iconButtonSize),
+                    maxHeight: Double(Theme.Metrics.iconButtonSize)
+                )
+                .background(
+                    (hovered ? Theme.hoverFill : Color.clear)
+                        .cornerRadius(Theme.Metrics.buttonCorner)
+                )
         }
         .buttonStyle(.plain)
-        .frame(minWidth: 26, maxWidth: 26, minHeight: 24, maxHeight: 24)
-        .background((hovered ? Theme.hoverFill : Color.clear).cornerRadius(6))
         .onHover { hovered = $0 }
         .help(help)
     }
@@ -76,20 +94,42 @@ struct BranchPicker: View {
     @Binding var branch: BuildBranch
     let accent: Color
 
+    private static let padding = 3
+    private static let spacing = 3
+
     var body: some View {
-        HStack(spacing: 3) {
-            ForEach(BuildBranch.allCases, id: \.id) { option in
-                BranchSegment(
-                    title: option.title,
-                    selected: option == branch,
-                    accent: accent
-                ) {
-                    branch = option
+        // Segment widths are computed rather than expressed as
+        // `.frame(maxWidth: .infinity)`: inside a Button label that traps in
+        // SwiftCrossUI's layout ("Double value cannot be converted to Int").
+        // The frame has to be inside the label for the whole capsule to be
+        // clickable, so an explicit width is the way to get both.
+        GeometryReader { proxy in
+            let options = BuildBranch.allCases
+            let inner = proxy.size.width - Double(Self.padding * 2)
+            let gaps = Double(Self.spacing * (options.count - 1))
+            let segment = max(40, (inner - gaps) / Double(options.count))
+
+            HStack(spacing: Self.spacing) {
+                ForEach(options, id: \.id) { option in
+                    BranchSegment(
+                        title: option.title,
+                        selected: option == branch,
+                        accent: accent,
+                        width: segment
+                    ) {
+                        branch = option
+                    }
                 }
             }
+            .padding(Self.padding)
+            .background(
+                Theme.controlBackground.cornerRadius(Theme.Metrics.tabContainerCorner)
+            )
         }
-        .padding(3)
-        .background(Theme.controlBackground.cornerRadius(10))
+        .frame(
+            minHeight: Double(Theme.Metrics.tabHeight + Self.padding * 2),
+            maxHeight: Double(Theme.Metrics.tabHeight + Self.padding * 2)
+        )
     }
 }
 
@@ -97,6 +137,7 @@ private struct BranchSegment: View {
     let title: String
     let selected: Bool
     let accent: Color
+    let width: Double
     let action: @MainActor @Sendable () -> Void
 
     @State private var hovered = false
@@ -106,10 +147,15 @@ private struct BranchSegment: View {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(selected ? .white : Theme.secondaryText)
+                .frame(
+                    minWidth: width,
+                    maxWidth: width,
+                    minHeight: Double(Theme.Metrics.tabHeight),
+                    maxHeight: Double(Theme.Metrics.tabHeight)
+                )
+                .background(fill.cornerRadius(Theme.Metrics.tabCorner))
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24)
-        .background(fill.cornerRadius(7))
         .onHover { hovered = $0 }
     }
 
@@ -140,7 +186,7 @@ struct ErrorBanner: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.red.opacity(0.12).cornerRadius(8))
+            .background(Color.red.opacity(0.12).cornerRadius(Theme.Metrics.corner))
         }
     }
 }
