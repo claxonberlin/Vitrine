@@ -42,7 +42,12 @@ enum Theme {
         /// and inner curves stay concentric.
         static let tabContainerCorner = 17
 
-        static let iconButtonSize = 28
+        /// Hit area for a toolbar icon, and the artwork inside it. The
+        /// generous difference is the whitespace that keeps the cluster from
+        /// looking cramped.
+        static let iconButtonSize = 30
+        static let iconSize = 18
+        /// Text glyphs still used for marks with no SVG (star, chevrons, ⋯).
         static let iconGlyphSize = 16
         /// Matches the compact unified title bar so the header lines up with
         /// the traffic lights.
@@ -60,14 +65,10 @@ enum Theme {
         static let starFilled = "★"
         static let starEmpty = "☆"
         static let update = "↑"
-        static let refresh = "⟳"
-        static let add = "+"
-        static let settings = "⚙"
         static let stop = "■"
         static let expanded = "⌄"
         static let collapsed = "›"
         static let more = "⋯"
-        static let otherWindow = "⧉"
         /// Plain U+2193 rather than a fancier download arrow: it is present in
         /// every system font on both platforms, including GNOME's Cantarell.
         static let download = "↓"

@@ -37,18 +37,14 @@ struct InstalledWindow: View {
     private var header: some View {
         HeaderBar(title: "Vitrine") {
             ToolbarCluster {
-                IconButton(glyph: Theme.Glyph.add,
-                           help: "Add a Blender build you already have",
-                           accent: accent) {
+                IconButton(icon: .addBuild,
+                           help: "Add a Blender build you already have") {
                     pickExistingBuild()
                 }
-                IconButton(glyph: Theme.Glyph.settings,
-                           help: "Preferences", accent: accent) {
+                IconButton(icon: .settings, help: "Preferences") {
                     showingSettings = true
                 }
-                IconButton(glyph: Theme.Glyph.otherWindow,
-                           help: "Show the Catalogue window",
-                           accent: accent) {
+                IconButton(icon: .catalogue, help: "Show the Catalogue window") {
                     openWindow(id: Theme.WindowID.catalogue)
                 }
             }
@@ -61,7 +57,7 @@ struct InstalledWindow: View {
         if items.isEmpty {
             EmptyState(message: """
                 No \(branch.title.lowercased()) builds installed.
-                Open the Catalogue to download one, or use + to add a build you already have.
+                Open the Catalogue to download one, or add a build you already have.
                 """)
         } else {
             ScrollView {

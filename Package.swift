@@ -26,6 +26,9 @@ let package = Package(
                 .product(name: "AppKitBackend", package: "swift-cross-ui",
                          condition: .when(platforms: [.macOS]))
             ],
+            // Copied rather than processed so the Icons/ directory keeps its
+            // shape identically on macOS and Linux.
+            resources: [.copy("Resources/Icons")],
             linkerSettings: [
                 // Embeds Info.plist into __TEXT,__info_plist so `swift run` on
                 // macOS launches as a real GUI app. Swift Bundler supplies the

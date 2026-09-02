@@ -39,21 +39,21 @@ struct CatalogueWindow: View {
                 // spinner both replaces the control and reports progress.
                 if store.isFetching {
                     ProgressView()
-                        .frame(minWidth: 26, maxWidth: 26, minHeight: 24, maxHeight: 24)
+                        .frame(
+                            minWidth: Double(Theme.Metrics.iconButtonSize),
+                            maxWidth: Double(Theme.Metrics.iconButtonSize),
+                            minHeight: Double(Theme.Metrics.iconButtonSize),
+                            maxHeight: Double(Theme.Metrics.iconButtonSize)
+                        )
                 } else {
-                    IconButton(glyph: Theme.Glyph.refresh,
-                               help: "Refresh the catalogue",
-                               accent: accent) {
+                    IconButton(icon: .refresh, help: "Refresh the catalogue") {
                         Task { await store.refreshAll() }
                     }
                 }
-                IconButton(glyph: Theme.Glyph.settings,
-                           help: "Preferences", accent: accent) {
+                IconButton(icon: .settings, help: "Preferences") {
                     showingSettings = true
                 }
-                IconButton(glyph: Theme.Glyph.otherWindow,
-                           help: "Show the Vitrine window",
-                           accent: accent) {
+                IconButton(icon: .library, help: "Show the Vitrine window") {
                     openWindow(id: Theme.WindowID.vitrine)
                 }
             }

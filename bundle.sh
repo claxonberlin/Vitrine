@@ -33,6 +33,16 @@ cp "$BIN" "$APP/Contents/MacOS/$APP_NAME"
 cp "$ICON" "$APP/Contents/Resources/AppIcon.icns"
 cp "$INFO_PLIST" "$APP/Contents/Info.plist"
 
+# SwiftPM emits declared resources as a side-by-side bundle. Bundle.module
+# looks in the main bundle's resource path, so it has to travel into the .app
+# — without this the toolbar icons silently render as blank space.
+RESOURCE_BUNDLE="$ROOT/.build/$CONFIG/${APP_NAME}_${APP_NAME}.bundle"
+if [[ -d "$RESOURCE_BUNDLE" ]]; then
+    cp -R "$RESOURCE_BUNDLE" "$APP/Contents/Resources/"
+else
+    echo "  ! resource bundle not found at $RESOURCE_BUNDLE" >&2
+fi
+
 # Ad-hoc sign so Gatekeeper stops asking on every launch.
 codesign --force --sign - "$APP" >/dev/null
 

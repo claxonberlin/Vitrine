@@ -40,32 +40,30 @@ struct ToolbarCluster<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 3) {
             content()
         }
-        .padding(3)
+        .padding(4)
         .background(Theme.controlBackground.cornerRadius(Theme.Metrics.corner))
     }
 }
 
-/// Glyph button used inside a `ToolbarCluster`. Carries no chrome of its own
+/// Icon button used inside a `ToolbarCluster`. Carries no chrome of its own
 /// beyond a hover fill — the cluster supplies the container.
 struct IconButton: View {
-    let glyph: String
+    let icon: Icon
     let help: String
-    let accent: Color
     let action: @MainActor @Sendable () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var hovered = false
 
     var body: some View {
         // Sizing and fill live *inside* the label: applied outside the Button
         // they decorate the frame but leave the clickable area the size of the
-        // glyph, so only the glyph itself responds.
+        // artwork, so only the icon itself responds.
         Button(action: action) {
-            Text(glyph)
-                .font(.system(size: Double(Theme.Metrics.iconGlyphSize)))
-                .foregroundColor(hovered ? accent : Theme.secondaryText)
+            artwork
                 .frame(
                     minWidth: Double(Theme.Metrics.iconButtonSize),
                     maxWidth: Double(Theme.Metrics.iconButtonSize),
@@ -80,6 +78,25 @@ struct IconButton: View {
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
         .help(help)
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        if let url = icon.url(for: colorScheme) {
+            Image(url)
+                .resizable()
+                .frame(
+                    width: Double(Theme.Metrics.iconSize),
+                    height: Double(Theme.Metrics.iconSize)
+                )
+        } else {
+            // Resource bundle missing: leave the space, don't crash.
+            Color.clear
+                .frame(
+                    width: Double(Theme.Metrics.iconSize),
+                    height: Double(Theme.Metrics.iconSize)
+                )
+        }
     }
 }
 
