@@ -1,91 +1,92 @@
 import Foundation
-import SwiftUI
+import SwiftCrossUI
+import VitrineKit
 
+/// The app's single view model.
+///
+/// `ObservableObject` and `Published` are spelled out with their module: on
+/// macOS, Foundation re-exports Combine's same-named types, and the bare
+/// names are ambiguous. Owns catalogue state, the installed list, and
+/// in-flight downloads, and is the only place that talks to `VitrineKit`.
 @MainActor
-final class BuildStore: ObservableObject {
+final class BuildStore: SwiftCrossUI.ObservableObject {
     // Remote (Catalogue tab)
-    @Published private(set) var stable: [RemoteBuild] = []
-    @Published private(set) var daily: [RemoteBuild] = []
-    @Published private(set) var experimental: [RemoteBuild] = []
+    @SwiftCrossUI.Published private(set) var stable: [RemoteBuild] = []
+    @SwiftCrossUI.Published private(set) var daily: [RemoteBuild] = []
+    @SwiftCrossUI.Published private(set) var experimental: [RemoteBuild] = []
 
     // Local (Vitrine tab)
-    @Published private(set) var installed: [InstalledBuild] = []
+    @SwiftCrossUI.Published private(set) var installed: [InstalledBuild] = []
 
     // UI state
-    @Published var topTab: TopTab = .installed
-    @Published var subTab: BuildBranch = .stable
-    @Published private(set) var fetchingStable = false
-    @Published private(set) var fetchingDaily = false
-    @Published private(set) var fetchingExperimental = false
-    @Published var lastError: String?
+    @SwiftCrossUI.Published var topTab: TopTab = .installed
+    @SwiftCrossUI.Published var subTab: BuildBranch = .stable
+    @SwiftCrossUI.Published private(set) var fetchingStable = false
+    @SwiftCrossUI.Published private(set) var fetchingDaily = false
+    @SwiftCrossUI.Published private(set) var fetchingExperimental = false
+    @SwiftCrossUI.Published var lastError: String?
 
-    @Published private(set) var downloads: [String: DownloadState] = [:]
+    @SwiftCrossUI.Published private(set) var downloads: [String: DownloadState] = [:]
     private var downloadTasks: [String: Task<Void, Never>] = [:]
 
     /// Catalogue group expansion state, keyed by minorKey (e.g. "4.5").
     /// Outlives sub-tab switches so re-visiting a tab keeps the user's
     /// previously expanded sections open.
-    @Published var expandedMinorKeys: Set<String> = []
+    @SwiftCrossUI.Published var expandedMinorKeys: Set<String> = []
 
-    /// installed.id → remote.url-id of the build currently being downloaded
-    /// as an in-place upgrade. Drives the per-row spinner in InstalledRow.
-    @Published private(set) var updatingTargets: [UUID: String] = [:]
+    /// installed.id → remote id of the build currently downloading as an
+    /// in-place upgrade. Drives the per-row spinner in InstalledRow.
+    @SwiftCrossUI.Published private(set) var updatingTargets: [UUID: String] = [:]
 
-    // Settings are backed by UserDefaults manually rather than @AppStorage:
-    // wrappers other than @Published don't feed objectWillChange inside an
-    // ObservableObject, so @AppStorage changes only repainted views by
-    // coincidence (whenever some other @Published write happened to follow).
-
-    @Published var libraryPath: String {
+    @SwiftCrossUI.Published var libraryPath: String {
         didSet {
             guard oldValue != libraryPath else { return }
-            UserDefaults.standard.set(libraryPath, forKey: Keys.libraryPath)
+            settings.libraryPath = libraryPath
+            config.save(settings)
             reloadInstalled()
         }
     }
 
-    @Published var minVersionString: String {
+    @SwiftCrossUI.Published var minVersionString: String {
         didSet {
             guard oldValue != minVersionString else { return }
-            UserDefaults.standard.set(minVersionString, forKey: Keys.minVersion)
-            // Re-fetch the stable archive against the new threshold; daily/exp
-            // are short lists, applying the filter in memory is enough.
+            settings.minVersion = minVersionString
+            config.save(settings)
+            // Re-fetch the stable archive against the new threshold; daily and
+            // experimental are short lists, so filtering in memory is enough.
             Task { await refreshStable() }
         }
     }
 
-    private enum Keys {
-        static let libraryPath = "libraryPath"
-        static let minVersion = "minVersion"
-        static let customBuilds = "customBuilds"
+    private let platform = Platform.current
+    private let config = ConfigStore()
+    private var settings: VitrineSettings
+    private let downloadManager = DownloadManager()
+
+    /// Rebuilt per access so a library-path change takes effect immediately;
+    /// Installer holds no state beyond its roots.
+    private var installer: Installer {
+        Installer(libraryRoot: libraryURL, downloads: downloadManager, platform: platform)
     }
 
     var minVersion: Version { Version(minVersionString) ?? Version("2.80")! }
-
-    static var defaultLibrary: URL {
-        URL(fileURLWithPath: "/Applications/Vitrine", isDirectory: true)
-    }
-
     var libraryURL: URL { URL(fileURLWithPath: libraryPath) }
-
-    private let downloadManager = DownloadManager()
-    /// Rebuilt per access so a library-path change in Settings takes effect
-    /// immediately; Installer holds no state beyond its two roots.
-    private var installer: Installer { Installer(libraryRoot: libraryURL, downloads: downloadManager) }
-
     var isFetching: Bool { fetchingStable || fetchingDaily || fetchingExperimental }
+    var fileManagerName: String { platform.fileManagerName }
 
     init() {
-        let defaults = UserDefaults.standard
-        _libraryPath = Published(initialValue: defaults.string(forKey: Keys.libraryPath) ?? Self.defaultLibrary.path)
-        _minVersionString = Published(initialValue: defaults.string(forKey: Keys.minVersion) ?? "2.80")
+        let config = ConfigStore()
+        let loaded = config.load()
+        self.settings = loaded
+        self.libraryPath = loaded.libraryPath ?? Platform.current.defaultLibraryRoot.path
+        self.minVersionString = loaded.minVersion
         reloadInstalled()
-        // Re-assert star wiring after a relaunch so the symlink survives an
-        // OS update or accidental cleanup elsewhere. Only when a build is
-        // actually starred: apply(nil) actively unwires, and would tear down
-        // a `blender` symlink the user created without Vitrine.
+        // Re-assert the star wiring after a relaunch so it survives an OS
+        // update or cleanup elsewhere. Only when something is actually
+        // starred: applyStarred(nil) actively unwires, and would tear down a
+        // `blender` symlink the user created without Vitrine.
         if let starred = installed.first(where: { $0.pinned }) {
-            SystemIntegration.apply(starred: starred)
+            Task { await platform.applyStarred(starred) }
         }
     }
 
@@ -102,10 +103,12 @@ final class BuildStore: ObservableObject {
         fetchingStable = true
         defer { fetchingStable = false }
         do {
-            let builds = try await BlenderAPI.fetchStableArchive(minVersion: minVersion)
-            self.stable = builds.sorted { $0.parsedVersion > $1.parsedVersion }
+            let builds = try await BlenderAPI.fetchStableArchive(
+                minVersion: minVersion, platform: platform.buildPlatform
+            )
+            stable = builds.sorted { $0.parsedVersion > $1.parsedVersion }
         } catch {
-            self.lastError = "Stable archive: \(error.localizedDescription)"
+            lastError = "Stable archive: \(error.localizedDescription)"
         }
     }
 
@@ -113,12 +116,14 @@ final class BuildStore: ObservableObject {
         fetchingDaily = true
         defer { fetchingDaily = false }
         do {
-            let builds = try await BlenderAPI.fetchBuilderBuilds(.daily)
-            // Keep alpha/candidate/beta out of stable, drop "stable" risk_id
-            // (those land in the dedicated stable archive instead).
-            self.daily = builds.filter { $0.riskId != "stable" }.sorted { $0.date > $1.date }
+            let builds = try await BlenderAPI.fetchBuilderBuilds(
+                .daily, platform: platform.buildPlatform
+            )
+            // Keep alpha/candidate/beta out of stable, and drop the "stable"
+            // risk_id — those land in the dedicated stable archive instead.
+            daily = builds.filter { $0.riskId != "stable" }.sorted { $0.date > $1.date }
         } catch {
-            self.lastError = "Daily builds: \(error.localizedDescription)"
+            lastError = "Daily builds: \(error.localizedDescription)"
         }
     }
 
@@ -126,10 +131,12 @@ final class BuildStore: ObservableObject {
         fetchingExperimental = true
         defer { fetchingExperimental = false }
         do {
-            let builds = try await BlenderAPI.fetchBuilderBuilds(.experimental)
-            self.experimental = builds.sorted { $0.date > $1.date }
+            let builds = try await BlenderAPI.fetchBuilderBuilds(
+                .experimental, platform: platform.buildPlatform
+            )
+            experimental = builds.sorted { $0.date > $1.date }
         } catch {
-            self.lastError = "Experimental: \(error.localizedDescription)"
+            lastError = "Experimental: \(error.localizedDescription)"
         }
     }
 
@@ -157,24 +164,25 @@ final class BuildStore: ObservableObject {
         return raw.filter { $0.parsedVersion >= minVersion }
     }
 
-    /// Groups the current remote list by X.Y minor key for the catalogue
-    /// view. Builds without a parseable minor key fall into single-element
-    /// groups keyed by their raw version string. Groups are returned newest
-    /// minor first; within a group, builds are sorted newest version first.
+    /// Groups the current remote list by X.Y minor key for the catalogue view.
+    /// Builds without a parseable minor key fall into single-element groups
+    /// keyed by their raw version string. Groups are returned newest minor
+    /// first; within a group, builds are sorted newest version first.
     func currentRemoteGrouped() -> [RemoteBuildGroup] {
-        let raw = currentRemote()
         var buckets: [String: [RemoteBuild]] = [:]
         var order: [String] = []
-        for b in raw {
+        for b in currentRemote() {
             let key = b.parsedVersion.minorKey ?? b.version
             if buckets[key] == nil { order.append(key) }
             buckets[key, default: []].append(b)
         }
-        let groups = order.map { key -> RemoteBuildGroup in
-            let sorted = buckets[key]!.sorted { $0.parsedVersion > $1.parsedVersion }
-            return RemoteBuildGroup(minorKey: key, builds: sorted)
+        return order.map { key in
+            RemoteBuildGroup(
+                minorKey: key,
+                builds: buckets[key]!.sorted { $0.parsedVersion > $1.parsedVersion }
+            )
         }
-        return groups.sorted { $0.latest.parsedVersion > $1.latest.parsedVersion }
+        .sorted { $0.latest.parsedVersion > $1.latest.parsedVersion }
     }
 
     func toggleExpansion(_ key: String) {
@@ -185,18 +193,15 @@ final class BuildStore: ObservableObject {
         }
     }
 
-    /// Returns the installed build that corresponds to a remote listing, if
-    /// any. Matched primarily by source URL — exact, and immune to the
-    /// builder API reporting git branches ("main", feature branches) that
-    /// never map onto a BuildBranch. Version+branch remains as a fallback
-    /// for library folders whose metadata predates URL tracking. Custom
-    /// builds never match: their version strings are user-controlled and
-    /// they aren't Vitrine's to put back.
+    /// The installed build corresponding to a remote listing, if any. Matched
+    /// primarily by source URL — exact, and immune to the builder API
+    /// reporting git branches ("main", feature branches) that never map onto a
+    /// BuildBranch. Version+branch remains as a fallback for library folders
+    /// whose metadata predates URL tracking. Custom builds never match: their
+    /// version strings are user-controlled and they aren't Vitrine's to remove.
     func installedMatch(for remote: RemoteBuild) -> InstalledBuild? {
         let candidates = installed.filter { !$0.isCustom }
-        if let exact = candidates.first(where: { $0.sourceURL == remote.url }) {
-            return exact
-        }
+        if let exact = candidates.first(where: { $0.sourceURL == remote.url }) { return exact }
         guard let remoteBranch = BuildBranch(rawValue: remote.branch) else { return nil }
         return candidates.first {
             $0.sourceURL == nil && $0.version == remote.version && $0.branch == remoteBranch
@@ -211,16 +216,18 @@ final class BuildStore: ObservableObject {
         }
     }
 
+    func downloadState(_ id: String) -> DownloadState { downloads[id] ?? .idle }
+
     // MARK: - Install / cancel / launch
 
     func install(_ build: RemoteBuild) {
         startInstall(of: build, branch: subTab)
     }
 
-    /// Download `target` and replace `old` with the result. Star status
-    /// transfers across. Blender stores prefs under a per-X.Y folder in
-    /// Application Support, so a within-minor patch picks up the existing
-    /// settings automatically — we just don't touch that folder.
+    /// Downloads `target` and replaces `old` with the result. Star status
+    /// transfers across. Blender stores prefs under a per-X.Y folder, so a
+    /// within-minor patch picks up existing settings automatically — we just
+    /// don't touch that folder.
     func updateInstall(from old: InstalledBuild, to target: RemoteBuild) {
         startInstall(of: target, branch: old.branch, replacing: old)
     }
@@ -228,7 +235,9 @@ final class BuildStore: ObservableObject {
     /// Shared download-and-install pipeline. `old` marks the in-place-update
     /// case: the outgoing build is removed once the new one is in place, and
     /// its star carries over.
-    private func startInstall(of target: RemoteBuild, branch: BuildBranch, replacing old: InstalledBuild? = nil) {
+    private func startInstall(of target: RemoteBuild,
+                              branch: BuildBranch,
+                              replacing old: InstalledBuild? = nil) {
         guard downloads[target.id]?.isActive != true else { return }
         if let old { updatingTargets[old.id] = target.id }
         downloads[target.id] = .queued
@@ -245,7 +254,7 @@ final class BuildStore: ObservableObject {
                 }
                 self.finishInstall(of: target, replacing: old)
                 if old?.pinned == true {
-                    // toggleStar enforces single-star and re-applies system wiring.
+                    // toggleStar enforces single-star and re-applies wiring.
                     self.toggleStar(new)
                 }
                 self.topTab = .installed
@@ -260,7 +269,7 @@ final class BuildStore: ObservableObject {
         }
     }
 
-    /// Clears the transient bookkeeping once an install completes, fails or
+    /// Clears the transient bookkeeping once an install completes, fails, or
     /// is canceled.
     private func finishInstall(of target: RemoteBuild, replacing old: InstalledBuild?) {
         downloads[target.id] = nil
@@ -276,7 +285,12 @@ final class BuildStore: ObservableObject {
     }
 
     func launch(_ build: InstalledBuild) {
-        installer.launch(build)
+        do {
+            try installer.launch(build)
+        } catch {
+            lastError = error.localizedDescription
+            return
+        }
         let now = Date()
         if let idx = installed.firstIndex(where: { $0.id == build.id }) {
             installed[idx].lastLaunchedAt = now
@@ -289,29 +303,36 @@ final class BuildStore: ObservableObject {
     }
 
     func reveal(_ build: InstalledBuild) {
-        installer.reveal(build)
+        Task { await installer.reveal(build) }
     }
 
-    /// Uninstalling a library build deletes its folder. A custom build —
-    /// an app the user already had on disk — is only forgotten; the .app
-    /// itself is never touched.
+    func revealLibrary() {
+        Task { await platform.reveal(libraryURL) }
+    }
+
+    func openInBrowser(_ string: String) {
+        guard let url = URL(string: string) else { return }
+        Task { await platform.openURL(url) }
+    }
+
+    /// Uninstalling a library build deletes its folder. A custom build — one
+    /// the user already had on disk — is only forgotten; the files themselves
+    /// are never touched.
     func uninstall(_ build: InstalledBuild) {
         let removingStarred = build.pinned
         if !build.isCustom {
             try? installer.uninstall(build)
         }
         installed.removeAll { $0.id == build.id }
-        if build.isCustom {
-            persistCustomBuilds()
-        }
+        if build.isCustom { persistCustomBuilds() }
         if removingStarred {
-            SystemIntegration.apply(starred: nil)
+            Task { await platform.applyStarred(nil) }
         }
     }
 
     /// Single-star semantics: the targeted build becomes the *only* starred
-    /// build (or unstarred if it was already starred). The starred build is
-    /// also wired into macOS (default `.blend` handler + `blender` symlink).
+    /// build (or is unstarred if it already was). The starred build is also
+    /// wired into the desktop by the platform layer.
     func toggleStar(_ build: InstalledBuild) {
         let wasStarred = installed.first(where: { $0.id == build.id })?.pinned ?? false
         let nowStarred = !wasStarred
@@ -328,17 +349,17 @@ final class BuildStore: ObservableObject {
         }
         if customsChanged { persistCustomBuilds() }
         let starred = installed.first(where: { $0.pinned })
-        SystemIntegration.apply(starred: starred)
+        Task { await platform.applyStarred(starred) }
     }
 
     // MARK: - In-place update
 
-    /// Returns the newest remote build sharing the same X.Y minor key as the
-    /// installed build, where the remote version is strictly greater. Searches
-    /// only the matching branch's pool, since cross-branch updates would mean
-    /// switching tracks (e.g. stable → daily), which is not what "update"
-    /// implies. Custom builds (loose Blender.apps) opt out — their version
-    /// strings often aren't real Blender versions.
+    /// The newest remote build sharing the same X.Y minor key as the installed
+    /// build, where the remote version is strictly greater. Searches only the
+    /// matching branch's pool, since a cross-branch update would mean
+    /// switching tracks (stable → daily), which isn't what "update" implies.
+    /// Custom builds opt out — their version strings often aren't real Blender
+    /// versions.
     func updateAvailable(for build: InstalledBuild) -> RemoteBuild? {
         guard !build.isCustom,
               let installedV = Version(build.version),
@@ -356,53 +377,45 @@ final class BuildStore: ObservableObject {
 
     // MARK: - Custom (user-added local builds)
 
-    /// Adds an externally-installed Blender.app to the Vitrine. The app stays
-    /// where the user has it; we only track a reference. The build is filed
-    /// under whichever sub-tab is currently visible, so the user controls
-    /// where it lands by switching tabs first.
-    func addCustomBuild(at appURL: URL) {
-        // Re-picking an already-tracked app keeps the existing entry.
-        guard !installed.contains(where: { $0.appPath == appURL }) else { return }
-        let plistURL = appURL.appendingPathComponent("Contents/Info.plist")
-        let version: String = {
-            if let data = try? Data(contentsOf: plistURL),
-               let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
-               let v = plist["CFBundleShortVersionString"] as? String, !v.isEmpty {
-                return v
-            }
-            return appURL.deletingPathExtension().lastPathComponent
-        }()
-        let entry = InstalledBuild(
-            id: UUID(),
-            version: version,
-            riskId: InstalledBuild.customRiskID,
-            branch: subTab,
-            installedAt: Date(),
-            lastLaunchedAt: nil,
-            sourceURL: nil,
-            appPath: appURL,
-            pinned: false
-        )
-        installed.append(entry)
-        persistCustomBuilds()
+    /// Adds an externally-installed Blender to the Vitrine. It stays where the
+    /// user has it; we only track a reference. The build is filed under
+    /// whichever sub-tab is visible, so the user controls where it lands by
+    /// switching tabs first.
+    func addCustomBuild(at url: URL) {
+        guard !installed.contains(where: { $0.buildPath == url }) else { return }
+        let branch = subTab
+        Task {
+            let version = await platform.version(ofBuildAt: url)
+                ?? url.deletingPathExtension().lastPathComponent
+            let entry = InstalledBuild(
+                id: UUID(),
+                version: version,
+                riskId: InstalledBuild.customRiskID,
+                branch: branch,
+                installedAt: Date(),
+                lastLaunchedAt: nil,
+                sourceURL: nil,
+                buildPath: url,
+                pinned: false
+            )
+            installed.append(entry)
+            persistCustomBuilds()
+            topTab = .installed
+        }
     }
 
     /// Custom builds live outside the library folder, so walking it can't
-    /// rediscover them — they're carried in UserDefaults instead.
+    /// rediscover them — they're carried in the config file instead.
     private func persistCustomBuilds() {
-        let customs = installed.filter { $0.isCustom }
-        UserDefaults.standard.set(try? JSONEncoder().encode(customs), forKey: Keys.customBuilds)
-    }
-
-    private static func loadCustomBuilds() -> [InstalledBuild] {
-        guard let data = UserDefaults.standard.data(forKey: Keys.customBuilds),
-              let customs = try? JSONDecoder().decode([InstalledBuild].self, from: data)
-        else { return [] }
-        // Drop entries whose .app vanished (moved or trashed outside Vitrine).
-        return customs.filter { FileManager.default.fileExists(atPath: $0.appPath.path) }
+        settings.customBuilds = installed.filter { $0.isCustom }
+        config.save(settings)
     }
 
     func reloadInstalled() {
-        installed = installer.discoverInstalled() + Self.loadCustomBuilds()
+        // Drop entries whose build vanished (moved or deleted outside Vitrine).
+        let customs = settings.customBuilds.filter {
+            FileManager.default.fileExists(atPath: $0.buildPath.path)
+        }
+        installed = installer.discoverInstalled() + customs
     }
 }

@@ -1,21 +1,24 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Streams a file with `URLSessionDownloadTask`, surfacing progress, speed
 /// and cancel without iterating bytes one by one (the byte-stream approach
 /// lost ~99% of throughput because every byte hopped through the executor).
-final class DownloadManager: @unchecked Sendable {
-    struct Progress: Sendable {
-        let received: Int64
-        let total: Int64
-        let bytesPerSecond: Double
+public final class DownloadManager: @unchecked Sendable {
+    public struct Progress: Sendable {
+        public let received: Int64
+        public let total: Int64
+        public let bytesPerSecond: Double
     }
 
-    enum Failure: Error, LocalizedError {
+    public enum Failure: Error, LocalizedError {
         case canceled
         case http(Int)
         case underlying(Error)
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .canceled: return "Download canceled"
             case .http(let code): return "Server returned HTTP \(code)"
@@ -27,7 +30,9 @@ final class DownloadManager: @unchecked Sendable {
     private let lock = NSLock()
     private var tasks: [String: URLSessionDownloadTask] = [:]
 
-    func download(
+    public init() {}
+
+    public func download(
         _ url: URL,
         id: String,
         progress: @Sendable @escaping (Progress) -> Void
@@ -54,7 +59,7 @@ final class DownloadManager: @unchecked Sendable {
         }
     }
 
-    func cancel(id: String) {
+    public func cancel(id: String) {
         lock.lock()
         let task = tasks.removeValue(forKey: id)
         lock.unlock()
@@ -133,9 +138,12 @@ final class DownloadManager: @unchecked Sendable {
                 return
             }
             // The system deletes `location` as soon as this returns, so we
-            // move it synchronously to a path the caller controls.
+            // move it synchronously to a path the caller controls. The
+            // original filename is carried over so the extension still tells
+            // the platform layer what it is holding (.dmg vs .tar.xz).
+            let sourceName = downloadTask.originalRequest?.url?.lastPathComponent ?? "download"
             let dest = FileManager.default.temporaryDirectory
-                .appendingPathComponent("vitrine-\(UUID().uuidString).dmg")
+                .appendingPathComponent("vitrine-\(UUID().uuidString)-\(sourceName)")
             do {
                 try FileManager.default.moveItem(at: location, to: dest)
                 resume(.success(dest))

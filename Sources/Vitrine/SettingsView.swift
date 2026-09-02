@@ -1,71 +1,85 @@
-import SwiftUI
-import AppKit
+import SwiftCrossUI
+import VitrineKit
 
 struct SettingsView: View {
-    @EnvironmentObject var store: BuildStore
-    @State private var minVersionDraft: String = ""
+    let store: BuildStore
+    @Binding var isPresented: Bool
+
+    @State private var minVersionDraft = ""
     @State private var minVersionError: String?
+    @Environment(\.chooseFile) private var chooseFile
 
     var body: some View {
-        Form {
-            Section("Library") {
-                LabeledContent("Folder") {
-                    HStack(spacing: 6) {
-                        Text(store.libraryPath)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Button("Choose…") { pickFolder() }
-                            .handCursor()
-                        Button("Reveal") {
-                            NSWorkspace.shared.activateFileViewerSelecting([store.libraryURL])
-                        }
-                        .handCursor()
-                    }
-                }
-                Text("Builds are organized as `<folder>/<branch>/<build-id>/Blender.app`. Switching folders re-scans for installed builds.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Preferences").font(.system(size: 15, weight: .semibold))
+                Spacer(minLength: 8)
+                Button("Done") { isPresented = false }
             }
 
-            Section("Catalogue filter") {
-                LabeledContent("Minimum version") {
-                    HStack {
-                        TextField("e.g. 2.80", text: $minVersionDraft)
-                            .frame(width: 120)
-                            .onSubmit(commitMinVersion)
-                            .onChange(of: minVersionDraft) { minVersionError = nil }
-                        Button("Apply", action: commitMinVersion)
-                            .disabled(minVersionDraft == store.minVersionString)
-                            .handCursor()
-                    }
-                }
-                if let err = minVersionError {
-                    Text(err).font(.caption).foregroundStyle(.red)
-                } else {
-                    Text("Hides every release older than this. Default 2.80 — earlier builds don't run on modern macOS.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            librarySection
+            catalogueSection
+
+            Spacer(minLength: 0)
         }
-        .formStyle(.grouped)
-        .frame(width: 480, height: 320)
+        .padding(18)
+        .frame(width: 520, height: 340)
         .onAppear { minVersionDraft = store.minVersionString }
     }
 
+    private var librarySection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Library").font(.system(size: 12, weight: .semibold))
+            HStack(spacing: 8) {
+                Text(store.libraryPath)
+                    .font(.system(size: 11))
+                    .fontDesign(.monospaced)
+                    .foregroundColor(Theme.secondaryText)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Button("Choose…") { pickFolder() }
+                Button("Reveal") { store.revealLibrary() }
+            }
+            Text("""
+                Builds are organised as <folder>/<branch>/<build-id>/. \
+                Switching folders re-scans for installed builds.
+                """)
+                .font(.system(size: 10))
+                .foregroundColor(Theme.tertiaryText)
+        }
+    }
+
+    private var catalogueSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Catalogue filter").font(.system(size: 12, weight: .semibold))
+            HStack(spacing: 8) {
+                Text("Minimum version").font(.system(size: 11))
+                TextField("e.g. 2.80", text: $minVersionDraft)
+                    .frame(width: 120)
+                Button("Apply") { commitMinVersion() }
+                Spacer(minLength: 8)
+            }
+            if let minVersionError {
+                Text(minVersionError)
+                    .font(.system(size: 10))
+                    .foregroundColor(.red)
+            } else {
+                Text("Hides every release older than this. Default 2.80.")
+                    .font(.system(size: 10))
+                    .foregroundColor(Theme.tertiaryText)
+            }
+        }
+    }
+
     private func pickFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.directoryURL = store.libraryURL.deletingLastPathComponent()
-        if panel.runModal() == .OK, let url = panel.url {
-            store.libraryPath = url.path
+        Task {
+            let url = await chooseFile(
+                title: "Choose a library folder",
+                initialDirectory: store.libraryURL.deletingLastPathComponent(),
+                allowSelectingFiles: false,
+                allowSelectingDirectories: true
+            )
+            if let url { store.libraryPath = url.path }
         }
     }
 

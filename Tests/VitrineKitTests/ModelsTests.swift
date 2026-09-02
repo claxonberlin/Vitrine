@@ -1,5 +1,5 @@
 import XCTest
-@testable import Vitrine
+@testable import VitrineKit
 
 final class VersionTests: XCTestCase {
     func testParsing() {
