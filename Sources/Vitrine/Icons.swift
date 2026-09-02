@@ -13,12 +13,19 @@ enum Icon: String {
     case catalogue = "book-open"
     case settings = "settings"
     case refresh = "repeat-alt"
+    case download = "download"
 
     /// Resolves to the pre-tinted variant that reads against the current
     /// background. Returns nil only if the resource bundle is missing, which
     /// the caller renders as empty space rather than crashing.
+    /// Icons that only ever sit on a filled accent button ship in white only,
+    /// so the colour scheme doesn't apply to them.
+    private var isAccentOnly: Bool { self == .download }
+
     func url(for colorScheme: ColorScheme) -> URL? {
-        let tone = colorScheme == .dark ? "ondark" : "onlight"
+        let tone = isAccentOnly
+            ? "onaccent"
+            : (colorScheme == .dark ? "ondark" : "onlight")
         guard let resources = Bundle.module.resourceURL else { return nil }
         let url = resources.appendingPathComponent("Icons/\(rawValue)-\(tone).png")
         return FileManager.default.fileExists(atPath: url.path) ? url : nil

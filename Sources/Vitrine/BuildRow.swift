@@ -161,12 +161,9 @@ struct RemoteGroupHeaderRow: View {
                 accent: accent,
                 installedBuild: store.installedMatch(for: group.latest),
                 state: store.downloadState(group.latest.id),
-                compact: false
+                compact: false,
+                label: group.minorKey
             )
-
-            Text(group.minorKey)
-                .font(.system(size: 14, weight: .semibold))
-                .fontDesign(.monospaced)
 
             BadgeRow(
                 riskLabel: (branch == .stable && group.latest.riskId == "stable")
@@ -203,6 +200,8 @@ struct CatalogueActionColumn: View {
     let installedBuild: InstalledBuild?
     let state: DownloadState
     let compact: Bool
+    /// Defaults to the full version; group headers pass the series instead.
+    var label: String? = nil
 
     private var height: Int {
         compact ? Theme.Metrics.compactActionHeight : Theme.Metrics.actionHeight
@@ -216,7 +215,12 @@ struct CatalogueActionColumn: View {
         } else {
             switch state {
             case .idle:
-                DownloadButton(version: build.version, tint: accent, height: height) {
+                DownloadButton(
+                    label: label ?? build.version,
+                    version: build.version,
+                    tint: accent,
+                    height: height
+                ) {
                     store.install(build, into: branch)
                 }
             case .queued, .installing:
@@ -239,26 +243,35 @@ struct CatalogueActionColumn: View {
     }
 }
 
-/// The catalogue's primary action: a download arrow and the exact version it
-/// will fetch.
+/// The catalogue's primary action. The icon is pinned to the leading edge and
+/// the label centred across the full button, so labels of different lengths
+/// ("5.2" against "4.5.13") still line up down the column.
 struct DownloadButton: View {
+    /// What the button says — the series on a group header, the exact build on
+    /// an individual row.
+    let label: String
+    /// The build actually fetched, used for the tooltip.
     let version: String
     let tint: Color
     let height: Int
     let action: @MainActor @Sendable () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var hovered = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                Text(Theme.Glyph.download)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
-                Text(version)
+            ZStack {
+                Text(label)
                     .font(.system(size: 12, weight: .semibold))
                     .fontDesign(.monospaced)
                     .foregroundColor(.white)
+
+                HStack(spacing: 0) {
+                    artwork
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 9)
             }
             .frame(
                 minWidth: Double(Theme.Metrics.actionWidth),
@@ -274,6 +287,15 @@ struct DownloadButton: View {
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
         .help("Download Blender \(version)")
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        if let url = Icon.download.url(for: colorScheme) {
+            Image(url).resizable().frame(width: 15, height: 15)
+        } else {
+            Color.clear.frame(width: 15, height: 15)
+        }
     }
 }
 

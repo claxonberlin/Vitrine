@@ -20,10 +20,19 @@ struct Tint {
     let color: NSColor
 }
 
-let tints = [
+let neutralTints = [
     Tint(suffix: "onlight", color: NSColor(white: 0.24, alpha: 1)),
     Tint(suffix: "ondark", color: NSColor(white: 0.88, alpha: 1))
 ]
+
+/// Icons that only ever sit on a filled accent button need white ink and
+/// nothing else; emitting the neutral pair for them would be dead weight.
+let accentOnly: Set<String> = ["download"]
+let accentTint = Tint(suffix: "onaccent", color: .white)
+
+func tints(for name: String) -> [Tint] {
+    accentOnly.contains(name) ? [accentTint] : neutralTints
+}
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let sourceDir = root.appendingPathComponent("Resources/Icons")
@@ -68,11 +77,11 @@ let svgs = try FileManager.default
 
 for svg in svgs {
     let name = svg.deletingPathExtension().lastPathComponent
-    for tint in tints {
+    for tint in tints(for: name) {
         let data = try rasterize(svg, tint: tint)
         let out = outputDir.appendingPathComponent("\(name)-\(tint.suffix).png")
         try data.write(to: out)
         print("  \(out.lastPathComponent)  \(data.count) bytes")
     }
 }
-print("rasterised \(svgs.count) icons × \(tints.count) tints at \(renderSize)px")
+print("rasterised \(svgs.count) icons at \(renderSize)px")

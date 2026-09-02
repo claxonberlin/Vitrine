@@ -67,6 +67,7 @@ private struct NSWindowConfigurator: NSViewRepresentable {
 /// `makeNSView` time there is no window to configure yet.
 private final class ConfiguringView: NSView {
     private var configured = false
+    private var lastSweep = Date.distantPast
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -91,6 +92,14 @@ private final class ConfiguringView: NSView {
         // The initial first responder is assigned after this runs, so clearing
         // once here isn't enough.
         DispatchQueue.main.async { clearButtonFocus(in: window) }
+        // Buttons created later — every catalogue row arrives after the fetch
+        // — need the same treatment, so sweep as the window updates.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidUpdate(_:)),
+            name: NSWindow.didUpdateNotification,
+            object: window
+        )
         // Selector-based rather than closure-based: the observer is removed
         // automatically when this view is deallocated, and the callback lands
         // on NSView's main-actor isolation without a Sendable dance.
@@ -107,16 +116,41 @@ private final class ConfiguringView: NSView {
         clearButtonFocus(in: window)
     }
 
+    /// didUpdate fires on every event-loop pass that touches the window, so
+    /// the sweep is throttled; the view tree is small enough that twice a
+    /// second is imperceptible.
+    @objc private func windowDidUpdate(_ note: Notification) {
+        guard let window = note.object as? NSWindow else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastSweep) > 0.5 else { return }
+        lastSweep = now
+        clearButtonFocus(in: window)
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
-/// AppKit gives first-responder status to the first control in a window, and
-/// renders that control highlighted — the lit-up "+" in the library window and
-/// the blue box on the refresh button. Only buttons are cleared, so the
-/// settings text field can still take focus normally.
+/// Suppresses the blue focus ring on buttons.
+///
+/// Clearing the first responder alone wasn't enough: AppKit hands focus back
+/// the moment a button is *clicked*, and the ring then persists — which is why
+/// the "+" stayed lit after opening the file dialog. Setting `focusRingType`
+/// to none on the controls themselves removes the artifact at the source.
+///
+/// Text fields are left alone so the settings sheet still shows where typing
+/// goes. Keyboard focus itself is untouched: only the ring is suppressed, so
+/// tabbing between controls still works.
 @MainActor
 private func clearButtonFocus(in window: NSWindow) {
-    if window.firstResponder is NSButton {
+    func sweep(_ view: NSView) {
+        if let control = view as? NSControl, !(control is NSTextField) {
+            control.focusRingType = .none
+        }
+        view.subviews.forEach(sweep)
+    }
+    if let content = window.contentView { sweep(content) }
+
+    if let focused = window.firstResponder as? NSControl, !(focused is NSTextField) {
         window.makeFirstResponder(nil)
     }
 }

@@ -6,7 +6,6 @@ struct CatalogueWindow: View {
     let store: BuildStore
 
     @State private var branch: BuildBranch = .stable
-    @State private var showingSettings = false
     @Environment(\.openWindow) private var openWindow
 
     private let accent = Theme.catalogueAccent
@@ -25,9 +24,6 @@ struct CatalogueWindow: View {
             minHeight: Double(Theme.Metrics.windowMinHeight)
         )
         .unifiedTitleBar()
-        .sheet(isPresented: $showingSettings) {
-            SettingsView(store: store, accent: accent, isPresented: $showingSettings)
-        }
     }
 
     private var header: some View {
@@ -49,9 +45,6 @@ struct CatalogueWindow: View {
                     IconButton(icon: .refresh, help: "Refresh the catalogue") {
                         Task { await store.refreshAll() }
                     }
-                }
-                IconButton(icon: .settings, help: "Preferences") {
-                    showingSettings = true
                 }
                 IconButton(icon: .library, help: "Show the Vitrine window") {
                     openWindow(id: Theme.WindowID.vitrine)

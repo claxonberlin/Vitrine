@@ -33,18 +33,16 @@ struct HeaderBar<Actions: View>: View {
     }
 }
 
-/// Groups the window actions into one rounded container, the way a macOS
-/// unified toolbar does — individually bordered buttons read as loose and
-/// unfinished.
+/// Spaces the window actions the way Finder's toolbar does: each button
+/// carries its own soft rounded fill and they sit apart, rather than being
+/// merged into a single bar.
 struct ToolbarCluster<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 6) {
             content()
         }
-        .padding(4)
-        .background(Theme.controlBackground.cornerRadius(Theme.Metrics.corner))
     }
 }
 
@@ -71,7 +69,7 @@ struct IconButton: View {
                     maxHeight: Double(Theme.Metrics.iconButtonSize)
                 )
                 .background(
-                    (hovered ? Theme.hoverFill : Color.clear)
+                    (hovered ? Theme.toolbarFillHover : Theme.toolbarFill)
                         .cornerRadius(Theme.Metrics.buttonCorner)
                 )
         }
