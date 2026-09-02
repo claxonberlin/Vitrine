@@ -70,7 +70,7 @@ struct IconButton: View {
                 )
                 .background(
                     (hovered ? Theme.toolbarFillHover : Theme.toolbarFill)
-                        .cornerRadius(Theme.Metrics.buttonCorner)
+                        .cornerRadius(Theme.Metrics.pill(Theme.Metrics.iconButtonSize))
                 )
         }
         .buttonStyle(.plain)
@@ -98,6 +98,80 @@ struct IconButton: View {
     }
 }
 
+/// Switches between the library and the catalogue. Both icons stay visible so
+/// the control reads as a toggle rather than a button whose meaning depends on
+/// the current state.
+struct PageToggle: View {
+    @Binding var page: Page
+
+    private static let inset = 3
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(Page.allCases, id: \.id) { candidate in
+                PageToggleSegment(
+                    page: candidate,
+                    selected: candidate == page
+                ) {
+                    page = candidate
+                }
+            }
+        }
+        .padding(Self.inset)
+        .background(
+            Theme.controlBackground
+                .cornerRadius(Theme.Metrics.pill(Theme.Metrics.toggleHeight + Self.inset * 2))
+        )
+    }
+}
+
+private struct PageToggleSegment: View {
+    let page: Page
+    let selected: Bool
+    let action: @MainActor @Sendable () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            artwork
+                .frame(
+                    minWidth: Double(Theme.Metrics.toggleSegmentWidth),
+                    maxWidth: Double(Theme.Metrics.toggleSegmentWidth),
+                    minHeight: Double(Theme.Metrics.toggleHeight),
+                    maxHeight: Double(Theme.Metrics.toggleHeight)
+                )
+                .background(fill.cornerRadius(Theme.Metrics.pill(Theme.Metrics.toggleHeight)))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .help("Show \(page.title)")
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        if let url = page.icon.url(for: colorScheme, onAccent: selected) {
+            Image(url)
+                .resizable()
+                .frame(
+                    width: Double(Theme.Metrics.iconSize),
+                    height: Double(Theme.Metrics.iconSize)
+                )
+        } else {
+            Color.clear.frame(
+                width: Double(Theme.Metrics.iconSize),
+                height: Double(Theme.Metrics.iconSize)
+            )
+        }
+    }
+
+    private var fill: Color {
+        if selected { return page.accent }
+        return hovered ? Theme.hoverFill : Color.clear
+    }
+}
+
 /// Branch selector, drawn rather than delegated to the backend's segmented
 /// control: the native one always paints the *system* accent, which put a blue
 /// pill inside the orange Catalogue window. Drawing it also means the two
@@ -109,7 +183,7 @@ struct BranchPicker: View {
     @Binding var branch: BuildBranch
     let accent: Color
 
-    private static let padding = 3
+    private static let padding = Theme.Metrics.switcherInset
     private static let spacing = 3
 
     var body: some View {
@@ -138,7 +212,8 @@ struct BranchPicker: View {
             }
             .padding(Self.padding)
             .background(
-                Theme.controlBackground.cornerRadius(Theme.Metrics.tabContainerCorner)
+                Theme.controlBackground
+                    .cornerRadius(Theme.Metrics.pill(Theme.Metrics.tabHeight + Self.padding * 2))
             )
         }
         .frame(
@@ -168,7 +243,7 @@ private struct BranchSegment: View {
                     minHeight: Double(Theme.Metrics.tabHeight),
                     maxHeight: Double(Theme.Metrics.tabHeight)
                 )
-                .background(fill.cornerRadius(Theme.Metrics.tabCorner))
+                .background(fill.cornerRadius(Theme.Metrics.pill(Theme.Metrics.tabHeight)))
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }

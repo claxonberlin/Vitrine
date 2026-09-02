@@ -25,13 +25,18 @@ let neutralTints = [
     Tint(suffix: "ondark", color: NSColor(white: 0.88, alpha: 1))
 ]
 
+let accentTint = Tint(suffix: "onaccent", color: .white)
+
 /// Icons that only ever sit on a filled accent button need white ink and
 /// nothing else; emitting the neutral pair for them would be dead weight.
 let accentOnly: Set<String> = ["download"]
-let accentTint = Tint(suffix: "onaccent", color: .white)
+/// Icons that appear both plain and on an accent fill — the page toggle shows
+/// its selected half filled — so they need all three tints.
+let accentAlso: Set<String> = ["apps", "book-open"]
 
 func tints(for name: String) -> [Tint] {
-    accentOnly.contains(name) ? [accentTint] : neutralTints
+    if accentOnly.contains(name) { return [accentTint] }
+    return accentAlso.contains(name) ? neutralTints + [accentTint] : neutralTints
 }
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

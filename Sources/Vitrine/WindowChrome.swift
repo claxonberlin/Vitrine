@@ -142,9 +142,12 @@ private final class ConfiguringView: NSView {
 /// tabbing between controls still works.
 @MainActor
 private func clearButtonFocus(in window: NSWindow) {
+    // focusRingType is declared on NSView, not NSControl, and the ring is
+    // drawn by whichever view in the chain claims it — restricting the sweep
+    // to NSControl left the ring on the button's wrapper.
     func sweep(_ view: NSView) {
-        if let control = view as? NSControl, !(control is NSTextField) {
-            control.focusRingType = .none
+        if !(view is NSTextField) && !(view is NSTextView) {
+            view.focusRingType = .none
         }
         view.subviews.forEach(sweep)
     }

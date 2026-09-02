@@ -27,38 +27,42 @@ enum Theme {
     static let tertiaryText = Color(white: 0.5, opacity: 0.70)
 
     enum Metrics {
-        // Rows are tighter and buttons taller than before: the action is the
-        // thing you aim at, the row is just its container.
-        static let rowHeight = 44
-        static let compactRowHeight = 38
-        static let actionWidth = 96   // download button: glyph + version
-        static let pillWidth = 78     // text-only actions (Launch, Put Back)
+        /// The spacing unit that sets the row rhythm: a row's action button
+        /// sits this far from the leading edge and from the top and bottom, so
+        /// a row is simply the button plus an even margin all round.
+        static let rowInset = 6
+        /// The branch switcher's own inset — deliberately a touch larger than
+        /// `rowInset` so it reads as the outer container it is.
+        static let switcherInset = 8
+
         static let actionHeight = 32
         static let compactActionHeight = 28
+        static let actionWidth = 84   // download button: icon + version
+        static let pillWidth = 78     // text-only actions (Launch, Put Back)
 
-        static let corner = 12          // rows, cluster
-        static let buttonCorner = 10
-        static let badgeCorner = 6
-        /// Half the control height, i.e. a full capsule.
-        static let tabCorner = 14
-        static let tabHeight = 28
-        /// The capsule radius plus the container's own padding, so the outer
-        /// and inner curves stay concentric.
-        static let tabContainerCorner = 17
+        static var rowHeight: Int { actionHeight + rowInset * 2 }
+        static var compactRowHeight: Int { compactActionHeight + rowInset * 2 }
 
-        /// Hit area for a toolbar icon, and the artwork inside it. The
-        /// generous difference is the whitespace that keeps the cluster from
-        /// looking cramped.
+        static let corner = 12          // row / group cards
+        static let badgeCorner = 8
+
         static let iconButtonSize = 30
         static let iconSize = 18
-        /// Text glyphs still used for marks with no SVG (star, chevrons, ⋯).
-        static let iconGlyphSize = 16
+        static let tabHeight = 28
+        /// Toggle segments are wider than they are tall to fit comfortably.
+        static let toggleSegmentWidth = 36
+        static let toggleHeight = 30
+
         /// Matches the compact unified title bar so the header lines up with
         /// the traffic lights.
         static let headerHeight = 38
 
         static let windowMinWidth = 470
         static let windowMinHeight = 400
+
+        /// Every button in the app is a pill: the radius is simply half the
+        /// control's height, so it stays fully round at any size.
+        static func pill(_ height: Int) -> Int { height / 2 }
     }
 
     /// Text stand-ins for what were SF Symbols on macOS. SwiftCrossUI's
@@ -78,10 +82,4 @@ enum Theme {
         static let download = "↓"
     }
 
-    /// Window identifiers, shared between the scene declarations and the
-    /// buttons that reopen a closed window.
-    enum WindowID {
-        static let vitrine = "vitrine"
-        static let catalogue = "catalogue"
-    }
 }

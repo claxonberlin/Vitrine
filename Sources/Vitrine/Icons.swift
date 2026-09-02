@@ -22,8 +22,10 @@ enum Icon: String {
     /// so the colour scheme doesn't apply to them.
     private var isAccentOnly: Bool { self == .download }
 
-    func url(for colorScheme: ColorScheme) -> URL? {
-        let tone = isAccentOnly
+    /// - Parameter onAccent: request the white variant, for an icon drawn on a
+    ///   filled accent surface such as the selected half of the page toggle.
+    func url(for colorScheme: ColorScheme, onAccent: Bool = false) -> URL? {
+        let tone = (isAccentOnly || onAccent)
             ? "onaccent"
             : (colorScheme == .dark ? "ondark" : "onlight")
         guard let resources = Bundle.module.resourceURL else { return nil }

@@ -57,7 +57,7 @@ struct InstalledRow: View {
                 }
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Theme.Metrics.rowInset)
         .frame(height: Theme.Metrics.rowHeight)
         .background(RowBackground())
     }
@@ -72,6 +72,9 @@ struct RemoteRow: View {
     let branch: BuildBranch
     let accent: Color
     var compact: Bool = false
+    /// False when the row sits inside an expanded group, which paints one
+    /// continuous card behind the header and all of its children.
+    var drawsBackground: Bool = true
 
     private var state: DownloadState { store.downloadState(build.id) }
     private var suppressRiskBadge: Bool { branch == .stable && build.riskId == "stable" }
@@ -98,9 +101,9 @@ struct RemoteRow: View {
 
             rightColumn
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Theme.Metrics.rowInset)
         .frame(height: compact ? Theme.Metrics.compactRowHeight : Theme.Metrics.rowHeight)
-        .background(RowBackground())
+        .background(background)
     }
 
     @ViewBuilder
@@ -133,6 +136,15 @@ struct RemoteRow: View {
                         .foregroundColor(Theme.tertiaryText)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var background: some View {
+        if drawsBackground {
+            RowBackground()
+        } else {
+            Color.clear
         }
     }
 
@@ -183,9 +195,11 @@ struct RemoteGroupHeaderRow: View {
                 .foregroundColor(Theme.tertiaryText)
                 .frame(minWidth: 12, maxWidth: 12)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Theme.Metrics.rowInset)
         .frame(height: Theme.Metrics.rowHeight)
-        .background(RowBackground())
+        // No background of its own: the enclosing group card paints one
+        // continuous surface behind this header and its children. Drawing here
+        // too would double the fill and tint the header darker.
         .onTapGesture { store.toggleExpansion(group.minorKey) }
     }
 }
@@ -243,9 +257,8 @@ struct CatalogueActionColumn: View {
     }
 }
 
-/// The catalogue's primary action. The icon is pinned to the leading edge and
-/// the label centred across the full button, so labels of different lengths
-/// ("5.2" against "4.5.13") still line up down the column.
+/// The catalogue's primary action: download icon on the leading edge, version
+/// on the trailing edge.
 struct DownloadButton: View {
     /// What the button says — the series on a group header, the exact build on
     /// an individual row.
@@ -261,18 +274,15 @@ struct DownloadButton: View {
 
     var body: some View {
         Button(action: action) {
-            ZStack {
+            HStack(spacing: 0) {
+                artwork
+                Spacer(minLength: 4)
                 Text(label)
                     .font(.system(size: 12, weight: .semibold))
                     .fontDesign(.monospaced)
                     .foregroundColor(.white)
-
-                HStack(spacing: 0) {
-                    artwork
-                    Spacer(minLength: 0)
-                }
-                .padding(.leading, 9)
             }
+            .padding(.horizontal, 9)
             .frame(
                 minWidth: Double(Theme.Metrics.actionWidth),
                 maxWidth: Double(Theme.Metrics.actionWidth),
@@ -281,7 +291,7 @@ struct DownloadButton: View {
             )
             .background(
                 tint.opacity(hovered ? 1.0 : 0.88)
-                    .cornerRadius(Theme.Metrics.buttonCorner)
+                    .cornerRadius(Theme.Metrics.pill(height))
             )
         }
         .buttonStyle(.plain)
@@ -325,7 +335,7 @@ struct PillButton: View {
                 )
                 .background(
                     tint.opacity(hovered ? 1.0 : 0.88)
-                        .cornerRadius(Theme.Metrics.buttonCorner)
+                        .cornerRadius(Theme.Metrics.pill(height))
                 )
         }
         .buttonStyle(.plain)
