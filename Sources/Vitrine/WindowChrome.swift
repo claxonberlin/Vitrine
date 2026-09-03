@@ -36,6 +36,7 @@ extension View {
         return self
         #endif
     }
+
 }
 
 #if os(macOS)

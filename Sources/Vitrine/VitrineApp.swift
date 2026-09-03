@@ -13,8 +13,8 @@ struct VitrineApp: App {
             ContentView()
         }
         .defaultSize(
-            width: Theme.Metrics.windowMinWidth + 60,
-            height: Theme.Metrics.windowMinHeight + 80
+            width: Theme.Metrics.windowMinWidth,
+            height: Theme.Metrics.windowMinHeight
         )
         .commands {
             // The sites Vitrine draws its catalogue from.

@@ -23,6 +23,19 @@ enum Theme {
     static let toolbarFill = Color(white: 0.5, opacity: 0.13)
     static let toolbarFillHover = Color(white: 0.5, opacity: 0.26)
 
+    /// The sidebar floats over the library, so its fill has to be opaque —
+    /// the translucent greys used elsewhere would let rows show through.
+    /// SwiftCrossUI has no material or blur to defer to.
+    static func sidebarSurface(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(white: 0.17) : Color(white: 0.97)
+    }
+
+    /// Stands in for the drop shadow that would normally separate a floating
+    /// panel from what is behind it.
+    static func sidebarBorder(_ scheme: ColorScheme) -> Color {
+        Color(white: scheme == .dark ? 1.0 : 0.0, opacity: 0.12)
+    }
+
     static let secondaryText = Color(white: 0.5, opacity: 0.95)
     static let tertiaryText = Color(white: 0.5, opacity: 0.70)
 
@@ -31,9 +44,21 @@ enum Theme {
         /// sits this far from the leading edge and from the top and bottom, so
         /// a row is simply the button plus an even margin all round.
         static let rowInset = 6
-        /// The branch switcher's own inset — deliberately a touch larger than
-        /// `rowInset` so it reads as the outer container it is.
-        static let switcherInset = 8
+        /// The single margin used everywhere content meets the window: the
+        /// header buttons, the list edges, the gap between the library and the
+        /// catalogue sidebar. One value keeps all of it visually even.
+        static let windowMargin = 12
+        static let sidebarWidth = 236
+        static let sidebarCorner = 14
+
+        /// Measured from a screencapture of the window's own rounded corner
+        /// (best-fit circle through the alpha boundary, 40.5px at 2x). The
+        /// toolbar buttons are centred on this so each sits concentric with
+        /// the corner it tucks into.
+        static let windowCornerRadius = 20
+        /// Inset from the window edge that puts a button's *centre* on the
+        /// corner's centre, rather than merely matching its radius.
+        static var cornerButtonInset: Int { windowCornerRadius - iconButtonSize / 2 }
 
         static let actionHeight = 32
         static let compactActionHeight = 28
@@ -48,17 +73,13 @@ enum Theme {
 
         static let iconButtonSize = 30
         static let iconSize = 18
-        static let tabHeight = 28
-        /// Toggle segments are wider than they are tall to fit comfortably.
-        static let toggleSegmentWidth = 36
-        static let toggleHeight = 30
 
-        /// Matches the compact unified title bar so the header lines up with
-        /// the traffic lights.
-        static let headerHeight = 38
+        /// Twice the corner radius, so a vertically centred toolbar button
+        /// sits at exactly `windowCornerRadius` from the top edge.
+        static var headerHeight: Int { windowCornerRadius * 2 }
 
-        static let windowMinWidth = 470
-        static let windowMinHeight = 400
+        static let windowMinWidth = 380
+        static let windowMinHeight = 430
 
         /// Every button in the app is a pill: the radius is simply half the
         /// control's height, so it stays fully round at any size.

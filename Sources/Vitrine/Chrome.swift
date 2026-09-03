@@ -1,13 +1,11 @@
 import SwiftCrossUI
 import VitrineKit
 
-/// Pieces shared by both windows. Each window builds its own layout — they
-/// differ enough that a single generic shell would obscure more than it saved
-/// — but the parts below stay identical.
+/// Pieces shared by the library list and the catalogue sidebar.
 
-/// The top band. On macOS this sits *inside* the transparent title bar, so it
-/// leaves room for the traffic lights and renders the title itself; on GNOME
-/// the system header bar already shows the title and only the actions appear.
+/// The top band. On macOS this sits *inside* the transparent title bar, so the
+/// title is drawn here alongside the actions; on GNOME the system header bar
+/// already shows the title and only the actions appear.
 struct HeaderBar<Actions: View>: View {
     let title: String
     @ViewBuilder var actions: () -> Actions
@@ -21,7 +19,7 @@ struct HeaderBar<Actions: View>: View {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))
             }
-            HStack(spacing: 10) {
+            HStack(spacing: 6) {
                 Spacer(minLength: 0)
                 actions()
             }
@@ -34,7 +32,7 @@ struct HeaderBar<Actions: View>: View {
 }
 
 /// Spaces the window actions the way Finder's toolbar does: each button
-/// carries its own soft rounded fill and they sit apart, rather than being
+/// carries its own soft rounded fill with space between, rather than being
 /// merged into a single bar.
 struct ToolbarCluster<Content: View>: View {
     @ViewBuilder var content: () -> Content
@@ -46,11 +44,13 @@ struct ToolbarCluster<Content: View>: View {
     }
 }
 
-/// Icon button used inside a `ToolbarCluster`. Carries no chrome of its own
-/// beyond a hover fill — the cluster supplies the container.
+/// Round icon button. `active` fills it with the accent — used by the
+/// catalogue button to show the sidebar is open.
 struct IconButton: View {
     let icon: Icon
     let help: String
+    var active: Bool = false
+    var activeTint: Color = Theme.vitrineAccent
     let action: @MainActor @Sendable () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -68,19 +68,21 @@ struct IconButton: View {
                     minHeight: Double(Theme.Metrics.iconButtonSize),
                     maxHeight: Double(Theme.Metrics.iconButtonSize)
                 )
-                .background(
-                    (hovered ? Theme.toolbarFillHover : Theme.toolbarFill)
-                        .cornerRadius(Theme.Metrics.pill(Theme.Metrics.iconButtonSize))
-                )
+                .background(fill.cornerRadius(Theme.Metrics.pill(Theme.Metrics.iconButtonSize)))
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
         .help(help)
     }
 
+    private var fill: Color {
+        if active { return activeTint }
+        return hovered ? Theme.toolbarFillHover : Theme.toolbarFill
+    }
+
     @ViewBuilder
     private var artwork: some View {
-        if let url = icon.url(for: colorScheme) {
+        if let url = icon.url(for: colorScheme, onAccent: active) {
             Image(url)
                 .resizable()
                 .frame(
@@ -89,169 +91,28 @@ struct IconButton: View {
                 )
         } else {
             // Resource bundle missing: leave the space, don't crash.
-            Color.clear
-                .frame(
-                    width: Double(Theme.Metrics.iconSize),
-                    height: Double(Theme.Metrics.iconSize)
-                )
-        }
-    }
-}
-
-/// Switches between the library and the catalogue. Both icons stay visible so
-/// the control reads as a toggle rather than a button whose meaning depends on
-/// the current state.
-struct PageToggle: View {
-    @Binding var page: Page
-
-    private static let inset = 3
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(Page.allCases, id: \.id) { candidate in
-                PageToggleSegment(
-                    page: candidate,
-                    selected: candidate == page
-                ) {
-                    page = candidate
-                }
-            }
-        }
-        .padding(Self.inset)
-        .background(
-            Theme.controlBackground
-                .cornerRadius(Theme.Metrics.pill(Theme.Metrics.toggleHeight + Self.inset * 2))
-        )
-    }
-}
-
-private struct PageToggleSegment: View {
-    let page: Page
-    let selected: Bool
-    let action: @MainActor @Sendable () -> Void
-
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var hovered = false
-
-    var body: some View {
-        Button(action: action) {
-            artwork
-                .frame(
-                    minWidth: Double(Theme.Metrics.toggleSegmentWidth),
-                    maxWidth: Double(Theme.Metrics.toggleSegmentWidth),
-                    minHeight: Double(Theme.Metrics.toggleHeight),
-                    maxHeight: Double(Theme.Metrics.toggleHeight)
-                )
-                .background(fill.cornerRadius(Theme.Metrics.pill(Theme.Metrics.toggleHeight)))
-        }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-        .help("Show \(page.title)")
-    }
-
-    @ViewBuilder
-    private var artwork: some View {
-        if let url = page.icon.url(for: colorScheme, onAccent: selected) {
-            Image(url)
-                .resizable()
-                .frame(
-                    width: Double(Theme.Metrics.iconSize),
-                    height: Double(Theme.Metrics.iconSize)
-                )
-        } else {
             Color.clear.frame(
                 width: Double(Theme.Metrics.iconSize),
                 height: Double(Theme.Metrics.iconSize)
             )
         }
     }
-
-    private var fill: Color {
-        if selected { return page.accent }
-        return hovered ? Theme.hoverFill : Color.clear
-    }
 }
 
-/// Branch selector, drawn rather than delegated to the backend's segmented
-/// control: the native one always paints the *system* accent, which put a blue
-/// pill inside the orange Catalogue window. Drawing it also means the two
-/// platforms look identical.
-///
-/// Each window owns its own selection, so browsing daily builds in the
-/// catalogue doesn't disturb the library window.
-struct BranchPicker: View {
-    @Binding var branch: BuildBranch
-    let accent: Color
-
-    private static let padding = Theme.Metrics.switcherInset
-    private static let spacing = 3
-
-    var body: some View {
-        // Segment widths are computed rather than expressed as
-        // `.frame(maxWidth: .infinity)`: inside a Button label that traps in
-        // SwiftCrossUI's layout ("Double value cannot be converted to Int").
-        // The frame has to be inside the label for the whole capsule to be
-        // clickable, so an explicit width is the way to get both.
-        GeometryReader { proxy in
-            let options = BuildBranch.allCases
-            let inner = proxy.size.width - Double(Self.padding * 2)
-            let gaps = Double(Self.spacing * (options.count - 1))
-            let segment = max(40, (inner - gaps) / Double(options.count))
-
-            HStack(spacing: Self.spacing) {
-                ForEach(options, id: \.id) { option in
-                    BranchSegment(
-                        title: option.title,
-                        selected: option == branch,
-                        accent: accent,
-                        width: segment
-                    ) {
-                        branch = option
-                    }
-                }
-            }
-            .padding(Self.padding)
-            .background(
-                Theme.controlBackground
-                    .cornerRadius(Theme.Metrics.pill(Theme.Metrics.tabHeight + Self.padding * 2))
-            )
-        }
-        .frame(
-            minHeight: Double(Theme.Metrics.tabHeight + Self.padding * 2),
-            maxHeight: Double(Theme.Metrics.tabHeight + Self.padding * 2)
-        )
-    }
-}
-
-private struct BranchSegment: View {
+/// Separates the branches within a single scrolling list, in place of the
+/// segmented tabs. Everything is visible at once and the headers just mark
+/// where one branch ends and the next begins.
+struct SectionHeader: View {
     let title: String
-    let selected: Bool
-    let accent: Color
-    let width: Double
-    let action: @MainActor @Sendable () -> Void
-
-    @State private var hovered = false
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(selected ? .white : Theme.secondaryText)
-                .frame(
-                    minWidth: width,
-                    maxWidth: width,
-                    minHeight: Double(Theme.Metrics.tabHeight),
-                    maxHeight: Double(Theme.Metrics.tabHeight)
-                )
-                .background(fill.cornerRadius(Theme.Metrics.pill(Theme.Metrics.tabHeight)))
-        }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-    }
-
-    private var fill: Color {
-        if selected { return accent }
-        return hovered ? Theme.hoverFill : Color.clear
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(Theme.tertiaryText)
+            .padding(.leading, 4)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -289,7 +150,10 @@ struct EmptyState: View {
             .font(.system(size: 12))
             .foregroundColor(Theme.secondaryText)
             .multilineTextAlignment(.center)
-            .padding(20)
+            // Capped so a long sentence wraps instead of reporting its full
+            // unwrapped length as an ideal width and widening the window.
+            .frame(maxWidth: 240)
+            .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

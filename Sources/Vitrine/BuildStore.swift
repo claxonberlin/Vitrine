@@ -34,6 +34,11 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
     /// refreshed from blender.org on launch.
     @SwiftCrossUI.Published private(set) var ltsBranches: LTSBranches
 
+    /// Whether the catalogue sidebar is folded out. Kept on the store rather
+    /// than in a `@State` so it survives view-struct recreation and can be
+    /// driven from async contexts.
+    @SwiftCrossUI.Published var showingCatalogue = false
+
     /// Catalogue group expansion state, keyed by minorKey (e.g. "4.5").
     /// Outlives branch switches so re-visiting a branch keeps the user's
     /// previously expanded sections open.

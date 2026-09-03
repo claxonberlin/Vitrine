@@ -58,7 +58,7 @@ struct InstalledRow: View {
             }
         }
         .padding(.horizontal, Theme.Metrics.rowInset)
-        .frame(height: Theme.Metrics.rowHeight)
+        .frame(height: Double(Theme.Metrics.rowHeight))
         .background(RowBackground())
     }
 }
@@ -102,7 +102,7 @@ struct RemoteRow: View {
             rightColumn
         }
         .padding(.horizontal, Theme.Metrics.rowInset)
-        .frame(height: compact ? Theme.Metrics.compactRowHeight : Theme.Metrics.rowHeight)
+        .frame(height: Double(compact ? Theme.Metrics.compactRowHeight : Theme.Metrics.rowHeight))
         .background(background)
     }
 
@@ -112,10 +112,13 @@ struct RemoteRow: View {
         case .downloading(let received, let total, let bps):
             let fraction = total > 0 ? min(1.0, Double(received) / Double(total)) : 0
             let etaSeconds = bps > 0 && total > received ? Double(total - received) / bps : -1
+            // Narrower than it was: these rows live in the sidebar now, so
+            // the bar is sized to fit there and the speed drops off, leaving
+            // the remaining time as the useful half.
             VStack(alignment: .trailing, spacing: 2) {
                 ProgressView(value: fraction)
-                    .frame(width: 130)
-                Text("\(speedString(bps)) · ETA \(DurationFormat.eta(seconds: etaSeconds))")
+                    .frame(width: 74)
+                Text(DurationFormat.eta(seconds: etaSeconds))
                     .font(.system(size: 9))
                     .foregroundColor(Theme.secondaryText)
             }
@@ -124,17 +127,14 @@ struct RemoteRow: View {
                 .font(.system(size: 10))
                 .foregroundColor(.red)
                 .lineLimit(2)
-                .frame(maxWidth: 170, alignment: .trailing)
+                .frame(maxWidth: 88, alignment: .trailing)
         default:
-            VStack(alignment: .trailing, spacing: 1) {
-                Text(DateFormat.day(build.date))
-                    .font(.system(size: 11))
-                    .foregroundColor(Theme.secondaryText)
-                if build.fileSize > 0 {
-                    Text(ByteFormat.string(build.fileSize))
-                        .font(.system(size: 9))
-                        .foregroundColor(Theme.tertiaryText)
-                }
+            // Only the size: the release date doesn't fit the sidebar and is
+            // the less useful of the two when picking a build to download.
+            if build.fileSize > 0 {
+                Text(ByteFormat.string(build.fileSize))
+                    .font(.system(size: 10))
+                    .foregroundColor(Theme.tertiaryText)
             }
         }
     }
@@ -148,9 +148,6 @@ struct RemoteRow: View {
         }
     }
 
-    private func speedString(_ bps: Double) -> String {
-        bps > 0 ? "\(ByteFormat.string(Int64(bps)))/s" : "—"
-    }
 }
 
 /// Header row summarising a minor-version group. The button fetches the
@@ -186,9 +183,12 @@ struct RemoteGroupHeaderRow: View {
 
             Spacer(minLength: 8)
 
-            Text("\(group.builds.count) versions")
+            // Just the count: "N versions" wrapped onto two lines in the
+            // sidebar, and the chevron beside it already says what it counts.
+            Text("\(group.builds.count)")
                 .font(.system(size: 10))
                 .foregroundColor(Theme.tertiaryText)
+                .lineLimit(1)
 
             Text(isExpanded ? Theme.Glyph.expanded : Theme.Glyph.collapsed)
                 .font(.system(size: 12, weight: .bold))
@@ -196,7 +196,7 @@ struct RemoteGroupHeaderRow: View {
                 .frame(minWidth: 12, maxWidth: 12)
         }
         .padding(.horizontal, Theme.Metrics.rowInset)
-        .frame(height: Theme.Metrics.rowHeight)
+        .frame(height: Double(Theme.Metrics.rowHeight))
         // No background of its own: the enclosing group card paints one
         // continuous surface behind this header and its children. Drawing here
         // too would double the fill and tint the header darker.
