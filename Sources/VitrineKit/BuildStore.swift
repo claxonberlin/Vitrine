@@ -1,77 +1,67 @@
 import Foundation
-import SwiftCrossUI
-import VitrineKit
 
-/// The app's single view model, shared by both windows. Owns catalogue state,
-/// the installed list, and in-flight downloads, and is the only place that
-/// talks to `VitrineKit`.
+/// The app's single view model: catalogue state, the installed library, and
+/// in-flight downloads. It is the only thing the front ends talk to, and it
+/// talks to nothing above itself — no UI framework is imported here, so the
+/// same object drives SwiftUI on macOS and Adwaita on Fedora.
 ///
-/// `ObservableObject` and `Published` are spelled out with their module: on
-/// macOS, Foundation re-exports Combine's same-named types, and the bare names
-/// are ambiguous.
+/// Change notification is hand-rolled rather than left to the `@Observable`
+/// macro: a macro plugin has to run on the build host, and the one Linux
+/// toolchains ship has known trouble expanding `@Observable`. A `didSet` on
+/// each property costs a line and works the same everywhere. Front ends
+/// subscribe with `observeChanges(_:)`.
 ///
-/// There is deliberately no selected-tab state here. Each window owns its own
-/// branch selection, so every query takes the branch as an argument.
+/// There is deliberately no window state here — which pane is open, what is
+/// selected — because that belongs to whichever shell is presenting it.
 @MainActor
-final class BuildStore: SwiftCrossUI.ObservableObject {
-    // Remote catalogue
-    @SwiftCrossUI.Published private(set) var stable: [RemoteBuild] = []
-    @SwiftCrossUI.Published private(set) var daily: [RemoteBuild] = []
-    @SwiftCrossUI.Published private(set) var experimental: [RemoteBuild] = []
+public final class BuildStore {
 
-    // Local library
-    @SwiftCrossUI.Published private(set) var installed: [InstalledBuild] = []
+    // MARK: - Remote catalogue
 
-    @SwiftCrossUI.Published private(set) var fetchingStable = false
-    @SwiftCrossUI.Published private(set) var fetchingDaily = false
-    @SwiftCrossUI.Published private(set) var fetchingExperimental = false
-    @SwiftCrossUI.Published var lastError: String?
+    public private(set) var stable: [RemoteBuild] = [] { didSet { notify() } }
+    public private(set) var daily: [RemoteBuild] = [] { didSet { notify() } }
+    public private(set) var experimental: [RemoteBuild] = [] { didSet { notify() } }
 
-    @SwiftCrossUI.Published private(set) var downloads: [String: DownloadState] = [:]
-    private var downloadTasks: [String: Task<Void, Never>] = [:]
+    public private(set) var fetchingStable = false { didSet { notify() } }
+    public private(set) var fetchingDaily = false { didSet { notify() } }
+    public private(set) var fetchingExperimental = false { didSet { notify() } }
 
     /// Which X.Y branches carry the LTS badge. Seeded from the cached list and
     /// refreshed from blender.org on launch.
-    @SwiftCrossUI.Published private(set) var ltsBranches: LTSBranches
+    public private(set) var ltsBranches: LTSBranches { didSet { notify() } }
 
-    /// Whether the catalogue sidebar is folded out. Kept on the store rather
-    /// than in a `@State` so it survives view-struct recreation and can be
-    /// driven from async contexts.
-    @SwiftCrossUI.Published var showingCatalogue = false
+    // MARK: - Local library
 
-    /// Catalogue group expansion state, keyed by minorKey (e.g. "4.5").
-    /// Outlives branch switches so re-visiting a branch keeps the user's
-    /// previously expanded sections open.
-    @SwiftCrossUI.Published var expandedMinorKeys: Set<String> = []
+    public private(set) var installed: [InstalledBuild] = [] { didSet { notify() } }
+
+    public private(set) var downloads: [String: DownloadState] = [:] { didSet { notify() } }
 
     /// installed.id → remote id of the build currently downloading as an
-    /// in-place upgrade. Drives the per-row spinner in InstalledRow.
-    @SwiftCrossUI.Published private(set) var updatingTargets: [UUID: String] = [:]
+    /// in-place upgrade. Drives the per-row spinner beside an installed build.
+    public private(set) var updatingTargets: [UUID: String] = [:] { didSet { notify() } }
 
-    @SwiftCrossUI.Published var libraryPath: String {
-        didSet {
-            guard oldValue != libraryPath else { return }
-            settings.libraryPath = libraryPath
-            config.save(settings)
-            reloadInstalled()
-        }
-    }
+    /// Catalogue group expansion, keyed by minor key (e.g. "4.5"). Lives here
+    /// rather than in a view so both front ends fold groups the same way and
+    /// the state survives a re-render.
+    public var expandedMinorKeys: Set<String> = [] { didSet { notify() } }
 
-    @SwiftCrossUI.Published var minVersionString: String {
-        didSet {
-            guard oldValue != minVersionString else { return }
-            settings.minVersion = minVersionString
-            config.save(settings)
-            // Re-fetch the stable archive against the new threshold; daily and
-            // experimental are short lists, so filtering in memory is enough.
-            Task { await refreshStable() }
-        }
-    }
+    /// Last failure worth showing. Settable so the UI can dismiss it.
+    public var lastError: String? { didSet { notify() } }
+
+    // MARK: - Settings
+
+    public private(set) var libraryPath: String { didSet { notify() } }
+    public private(set) var minVersionString: String { didSet { notify() } }
+
+    // MARK: - Internals
 
     private let platform = Platform.current
     private let config = ConfigStore()
     private var settings: VitrineSettings
     private let downloadManager = DownloadManager()
+    private var downloadTasks: [String: Task<Void, Never>] = [:]
+    /// Front ends subscribed through `observeChanges`. See StoreObservation.
+    var observers: [Observer] = []
 
     /// Rebuilt per access so a library-path change takes effect immediately;
     /// Installer holds no state beyond its roots.
@@ -79,12 +69,15 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         Installer(libraryRoot: libraryURL, downloads: downloadManager, platform: platform)
     }
 
-    var minVersion: Version { Version(minVersionString) ?? Version("2.80")! }
-    var libraryURL: URL { URL(fileURLWithPath: libraryPath) }
-    var isFetching: Bool { fetchingStable || fetchingDaily || fetchingExperimental }
-    var fileManagerName: String { platform.fileManagerName }
+    public var minVersion: Version { Version(minVersionString) ?? Version("2.80")! }
+    public var libraryURL: URL { URL(fileURLWithPath: libraryPath) }
+    public var isFetching: Bool { fetchingStable || fetchingDaily || fetchingExperimental }
+    public var fileManagerName: String { platform.fileManagerName }
+    /// Whether "add an existing build" means picking a directory rather than a
+    /// file, so each front end can configure its open dialog correctly.
+    public var buildIsDirectory: Bool { platform.buildIsDirectory }
 
-    init() {
+    public init() {
         let config = ConfigStore()
         let loaded = config.load()
         self.settings = loaded
@@ -103,7 +96,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
 
     // MARK: - Refresh
 
-    func refreshAll() async {
+    public func refreshAll() async {
         async let l: Void = refreshLTS()
         async let s: Void = refreshStable()
         async let d: Void = refreshDaily()
@@ -113,7 +106,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
 
     /// Failure here is deliberately silent: the cached list stays in place and
     /// a missing badge isn't worth an error banner over.
-    func refreshLTS() async {
+    public func refreshLTS() async {
         guard let fetched = try? await BlenderAPI.fetchLTSBranches() else { return }
         guard fetched != ltsBranches else { return }
         ltsBranches = fetched
@@ -121,7 +114,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         config.save(settings)
     }
 
-    func refreshStable() async {
+    public func refreshStable() async {
         fetchingStable = true
         defer { fetchingStable = false }
         do {
@@ -134,7 +127,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         }
     }
 
-    func refreshDaily() async {
+    public func refreshDaily() async {
         fetchingDaily = true
         defer { fetchingDaily = false }
         do {
@@ -149,7 +142,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         }
     }
 
-    func refreshExperimental() async {
+    public func refreshExperimental() async {
         fetchingExperimental = true
         defer { fetchingExperimental = false }
         do {
@@ -164,9 +157,9 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
 
     // MARK: - Queries
 
-    func isLTS(_ version: String) -> Bool { ltsBranches.contains(version: version) }
+    public func isLTS(_ version: String) -> Bool { ltsBranches.contains(version: version) }
 
-    func installed(in branch: BuildBranch) -> [InstalledBuild] {
+    public func installed(in branch: BuildBranch) -> [InstalledBuild] {
         installed
             .filter { $0.branch == branch }
             .sorted { lhs, rhs in
@@ -178,7 +171,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
             }
     }
 
-    func remote(in branch: BuildBranch) -> [RemoteBuild] {
+    public func remote(in branch: BuildBranch) -> [RemoteBuild] {
         let raw: [RemoteBuild]
         switch branch {
         case .stable: raw = stable
@@ -192,7 +185,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
     /// Builds without a parseable minor key fall into single-element groups
     /// keyed by their raw version string. Groups are returned newest minor
     /// first; within a group, builds are sorted newest version first.
-    func remoteGrouped(in branch: BuildBranch) -> [RemoteBuildGroup] {
+    public func remoteGrouped(in branch: BuildBranch) -> [RemoteBuildGroup] {
         var buckets: [String: [RemoteBuild]] = [:]
         var order: [String] = []
         for b in remote(in: branch) {
@@ -209,7 +202,9 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         .sorted { $0.latest.parsedVersion > $1.latest.parsedVersion }
     }
 
-    func toggleExpansion(_ key: String) {
+    public func isExpanded(_ key: String) -> Bool { expandedMinorKeys.contains(key) }
+
+    public func toggleExpansion(_ key: String) {
         if expandedMinorKeys.contains(key) {
             expandedMinorKeys.remove(key)
         } else {
@@ -223,7 +218,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
     /// BuildBranch. Version+branch remains as a fallback for library folders
     /// whose metadata predates URL tracking. Custom builds never match: their
     /// version strings are user-controlled and they aren't Vitrine's to remove.
-    func installedMatch(for remote: RemoteBuild) -> InstalledBuild? {
+    public func installedMatch(for remote: RemoteBuild) -> InstalledBuild? {
         let candidates = installed.filter { !$0.isCustom }
         if let exact = candidates.first(where: { $0.sourceURL == remote.url }) { return exact }
         guard let remoteBranch = BuildBranch(rawValue: remote.branch) else { return nil }
@@ -232,7 +227,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         }
     }
 
-    func isCurrentlyFetching(_ branch: BuildBranch) -> Bool {
+    public func isCurrentlyFetching(_ branch: BuildBranch) -> Bool {
         switch branch {
         case .stable: return fetchingStable
         case .daily: return fetchingDaily
@@ -240,11 +235,11 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         }
     }
 
-    func downloadState(_ id: String) -> DownloadState { downloads[id] ?? .idle }
+    public func downloadState(_ id: String) -> DownloadState { downloads[id] ?? .idle }
 
     // MARK: - Install / cancel / launch
 
-    func install(_ build: RemoteBuild, into branch: BuildBranch) {
+    public func install(_ build: RemoteBuild, into branch: BuildBranch) {
         startInstall(of: build, branch: branch)
     }
 
@@ -252,7 +247,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
     /// transfers across. Blender stores prefs under a per-X.Y folder, so a
     /// within-minor patch picks up existing settings automatically — we just
     /// don't touch that folder.
-    func updateInstall(from old: InstalledBuild, to target: RemoteBuild) {
+    public func updateInstall(from old: InstalledBuild, to target: RemoteBuild) {
         startInstall(of: target, branch: old.branch, replacing: old)
     }
 
@@ -299,14 +294,14 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         if let old { updatingTargets[old.id] = nil }
     }
 
-    func cancelDownload(_ build: RemoteBuild) {
+    public func cancelDownload(_ build: RemoteBuild) {
         downloadManager.cancel(id: build.id)
         downloadTasks[build.id]?.cancel()
         downloadTasks[build.id] = nil
         downloads[build.id] = nil
     }
 
-    func launch(_ build: InstalledBuild) {
+    public func launch(_ build: InstalledBuild) {
         do {
             try installer.launch(build)
         } catch {
@@ -324,15 +319,15 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         }
     }
 
-    func reveal(_ build: InstalledBuild) {
+    public func reveal(_ build: InstalledBuild) {
         Task { await installer.reveal(build) }
     }
 
-    func revealLibrary() {
+    public func revealLibrary() {
         Task { await platform.reveal(libraryURL) }
     }
 
-    func openInBrowser(_ string: String) {
+    public func openInBrowser(_ string: String) {
         guard let url = URL(string: string) else { return }
         Task { await platform.openURL(url) }
     }
@@ -340,7 +335,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
     /// Uninstalling a library build deletes its folder. A custom build — one
     /// the user already had on disk — is only forgotten; the files themselves
     /// are never touched.
-    func uninstall(_ build: InstalledBuild) {
+    public func uninstall(_ build: InstalledBuild) {
         let removingStarred = build.pinned
         if !build.isCustom {
             try? installer.uninstall(build)
@@ -355,7 +350,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
     /// Single-star semantics: the targeted build becomes the *only* starred
     /// build (or is unstarred if it already was). The starred build is also
     /// wired into the desktop by the platform layer.
-    func toggleStar(_ build: InstalledBuild) {
+    public func toggleStar(_ build: InstalledBuild) {
         let wasStarred = installed.first(where: { $0.id == build.id })?.pinned ?? false
         let nowStarred = !wasStarred
         var customsChanged = false
@@ -382,7 +377,7 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
     /// switching tracks (stable → daily), which isn't what "update" implies.
     /// Custom builds opt out — their version strings often aren't real Blender
     /// versions.
-    func updateAvailable(for build: InstalledBuild) -> RemoteBuild? {
+    public func updateAvailable(for build: InstalledBuild) -> RemoteBuild? {
         guard !build.isCustom,
               let installedV = Version(build.version),
               let key = installedV.minorKey else { return nil }
@@ -397,11 +392,17 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
             .max { $0.parsedVersion < $1.parsedVersion }
     }
 
+    /// True while an in-place update for this build is downloading.
+    public func isUpdating(_ build: InstalledBuild) -> Bool {
+        guard let remoteID = updatingTargets[build.id] else { return false }
+        return downloadState(remoteID).isActive
+    }
+
     // MARK: - Custom (user-added local builds)
 
     /// Adds an externally-installed Blender to the Vitrine. It stays where the
     /// user has it; we only track a reference, filed under `branch`.
-    func addCustomBuild(at url: URL, into branch: BuildBranch) {
+    public func addCustomBuild(at url: URL, into branch: BuildBranch) {
         guard !installed.contains(where: { $0.buildPath == url }) else { return }
         Task {
             let version = await platform.version(ofBuildAt: url)
@@ -428,11 +429,41 @@ final class BuildStore: SwiftCrossUI.ObservableObject {
         config.save(settings)
     }
 
-    func reloadInstalled() {
+    public func reloadInstalled() {
         // Drop entries whose build vanished (moved or deleted outside Vitrine).
         let customs = settings.customBuilds.filter {
             FileManager.default.fileExists(atPath: $0.buildPath.path)
         }
         installed = installer.discoverInstalled() + customs
+    }
+
+    // MARK: - Settings mutation
+    //
+    // Written as methods rather than settable properties: both of these have
+    // to persist to disk and re-query, which is more than a caller should
+    // trigger by assigning to a field.
+
+    public func setLibraryPath(_ path: String) {
+        guard path != libraryPath else { return }
+        libraryPath = path
+        settings.libraryPath = path
+        config.save(settings)
+        reloadInstalled()
+    }
+
+    /// Rejects anything that isn't a version, leaving the current value in
+    /// place, and reports whether it took.
+    @discardableResult
+    public func setMinVersion(_ raw: String) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        guard Version(trimmed) != nil else { return false }
+        guard trimmed != minVersionString else { return true }
+        minVersionString = trimmed
+        settings.minVersion = trimmed
+        config.save(settings)
+        // Re-fetch the stable archive against the new threshold; daily and
+        // experimental are short lists, so filtering in memory is enough.
+        Task { await refreshStable() }
+        return true
     }
 }

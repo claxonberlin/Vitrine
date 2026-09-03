@@ -33,9 +33,9 @@ cp "$BIN" "$APP/Contents/MacOS/$APP_NAME"
 cp "$ICON" "$APP/Contents/Resources/AppIcon.icns"
 cp "$INFO_PLIST" "$APP/Contents/Info.plist"
 
-# SwiftPM emits declared resources as a side-by-side bundle. Bundle.module
-# looks in the main bundle's resource path, so it has to travel into the .app
-# — without this the toolbar icons silently render as blank space.
+# SwiftPM emits declared resources — the SVG icon set — as a side-by-side
+# bundle. Bundle.module looks in the main bundle's resource path, so it has to
+# travel into the .app; without this the toolbar icons render as blank space.
 RESOURCE_BUNDLE="$ROOT/.build/$CONFIG/${APP_NAME}_${APP_NAME}.bundle"
 if [[ -d "$RESOURCE_BUNDLE" ]]; then
     cp -R "$RESOURCE_BUNDLE" "$APP/Contents/Resources/"

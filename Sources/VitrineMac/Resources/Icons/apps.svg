@@ -1,0 +1,51 @@
+<svg
+	width="24"
+	height="24"
+	viewBox="0 0 24 24"
+	fill="none"
+	xmlns="http://www.w3.org/2000/svg"
+>
+	<g class="oi-apps">
+		<rect
+			class="oi-vector"
+			x="3"
+			y="4.00006"
+			width="7"
+			height="7"
+			rx="1"
+			stroke="#000000"
+			stroke-width="1.5"
+		/>
+		<rect
+			class="oi-vector"
+			x="3"
+			y="14.0001"
+			width="7"
+			height="7"
+			rx="1"
+			stroke="#000000"
+			stroke-width="1.5"
+		/>
+		<rect
+			class="oi-vector"
+			x="13"
+			y="14.0001"
+			width="7"
+			height="7"
+			rx="1"
+			stroke="#000000"
+			stroke-width="1.5"
+		/>
+		<rect
+			class="oi-vector"
+			x="12.5502"
+			y="6.50006"
+			width="7"
+			height="7"
+			rx="1"
+			transform="rotate(-45 12.5502 6.50006)"
+			stroke="#000000"
+			stroke-width="1.5"
+		/>
+	</g>
+</svg>

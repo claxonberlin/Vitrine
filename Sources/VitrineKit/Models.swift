@@ -7,8 +7,8 @@ public enum BuildBranch: String, CaseIterable, Identifiable, Codable, Sendable {
     public var title: String { rawValue.capitalizedFirst }
 }
 
-// SwiftCrossUI's Picker labels each option with "\(option)", so the display
-// name has to come from `description` rather than a separate label closure.
+// Some list and picker widgets label an option by interpolating it, so the
+// display name is reachable without a separate label closure.
 extension BuildBranch: CustomStringConvertible {
     public var description: String { title }
 }
