@@ -12,7 +12,6 @@ enum Icon: String {
     case library = "apps"
     case catalogue = "book-open"
     case settings = "settings"
-    case refresh = "repeat-alt"
     case download = "download"
 
     /// Resolves to the pre-tinted variant that reads against the current

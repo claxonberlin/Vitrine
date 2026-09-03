@@ -115,8 +115,8 @@ struct ContentView: View {
                 Text("Catalogue")
                     .font(.system(size: 12, weight: .semibold))
                 Spacer(minLength: 4)
-                // Deliberately a spinner rather than a disabled button: AppKit
-                // draws a disabled plain button as a filled blue box.
+                // No refresh button: the catalogue is fetched once at launch.
+                // The spinner is the only feedback needed while that runs.
                 if store.isFetching {
                     ProgressView()
                         .frame(
@@ -125,10 +125,6 @@ struct ContentView: View {
                             minHeight: Double(Theme.Metrics.iconButtonSize),
                             maxHeight: Double(Theme.Metrics.iconButtonSize)
                         )
-                } else {
-                    IconButton(icon: .refresh, help: "Refresh the catalogue") {
-                        Task { await store.refreshAll() }
-                    }
                 }
             }
             catalogueList
