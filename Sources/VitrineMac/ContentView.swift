@@ -2,14 +2,17 @@ import SwiftUI
 import VitrineKit
 
 /// The whole app in one window: the installed library fills it, and the
-/// catalogue opens as a trailing inspector.
+/// catalogue floats in over the trailing edge.
+///
+/// The catalogue is an overlay, not a split. It lies on top of the library
+/// rather than taking space from it, so opening it never resizes the window
+/// or shoves the list sideways.
 ///
 /// Branches are not tabs. Both lists show every branch at once under a plain
 /// heading, so nothing is hidden behind a control you have to discover first.
 struct ContentView: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
-    @Environment(\.openSettings) private var openSettings
 
     @AppStorage("showingCatalogue") private var showingCatalogue = false
     @State private var choosingBuild = false
@@ -19,25 +22,28 @@ struct ContentView: View {
     private static let customBuildBranch: BuildBranch = .stable
 
     var body: some View {
-        VStack(spacing: 0) {
-            ErrorBanner()
-            LibraryPane()
+        ZStack(alignment: .topTrailing) {
+            SplashBackground()
+
+            VStack(spacing: 0) {
+                ErrorBanner()
+                LibraryPane()
+            }
+
+            if showingCatalogue {
+                CataloguePane()
+                    .frame(width: Theme.Metrics.sidebarWidth)
+                    .padding(Theme.Metrics.windowMargin)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
         }
         .frame(minWidth: Theme.Metrics.windowMinWidth,
                minHeight: Theme.Metrics.windowMinHeight)
-        .inspector(isPresented: $showingCatalogue) {
-            CataloguePane()
-                .inspectorColumnWidth(
-                    min: Theme.Metrics.inspectorMin,
-                    ideal: Theme.Metrics.inspectorIdeal,
-                    max: Theme.Metrics.inspectorMax
-                )
-        }
         .toolbar {
             titleItem
-            libraryActions
-            // A gap on macOS 26, so the catalogue toggle reads as belonging to
-            // the pane below it rather than to the two library actions.
+            addBuildAction
+            // A gap on macOS 26, so the catalogue toggle reads as the one
+            // control that changes what the window is showing.
             if #available(macOS 26.0, *) {
                 ToolbarSpacer(.fixed)
             }
@@ -80,21 +86,14 @@ struct ContentView: View {
     }
 
     @ToolbarContentBuilder
-    private var libraryActions: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
+    private var addBuildAction: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
             Button {
                 choosingBuild = true
             } label: {
                 IconView(icon: .addBuild)
             }
             .help("Add a Blender build you already have")
-
-            Button {
-                openSettings()
-            } label: {
-                IconView(icon: .settings)
-            }
-            .help("Settings")
         }
     }
 
@@ -139,6 +138,9 @@ struct LibraryPane: View {
                 .padding(.horizontal, Theme.Metrics.windowMargin)
                 .padding(.bottom, Theme.Metrics.windowMargin)
             }
+            // The artwork behind the window shows through the gaps between
+            // rows, so the scroll view brings no fill of its own.
+            .scrollContentBackground(.hidden)
         }
     }
 
@@ -165,7 +167,7 @@ struct SectionHeader: View {
         Text(title.uppercased())
             .font(.system(size: 10, weight: .semibold))
             .tracking(0.6)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 4)
             .padding(.top, 10)
@@ -201,7 +203,7 @@ struct ErrorBanner: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .padding(.horizontal, Theme.Metrics.windowMargin)
             .padding(.top, 4)
             .transition(.move(edge: .top).combined(with: .opacity))

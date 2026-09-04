@@ -1,48 +1,91 @@
 import SwiftUI
 import VitrineKit
 
-/// The remote catalogue, shown as a trailing inspector.
+/// The remote catalogue, as a pane floating over the library.
 ///
-/// The list is fetched once when the window opens; there is no refresh button
-/// because there is nothing a second fetch would tell you that the first
-/// didn't. ⌘R is there for the rare case.
+/// It has its own material, corner radius and shadow rather than sitting in a
+/// split, so it reads as a sheet laid on the window instead of a region cut
+/// out of it — and the library underneath keeps the width it had.
+///
+/// The list is fetched once when the window opens; there is nothing a second
+/// fetch would tell you that the first didn't. ⌘R is there for the rare case.
 struct CataloguePane: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
 
     var body: some View {
-        Group {
-            if store.isFetching && store.stable.isEmpty {
-                VStack(spacing: 10) {
-                    ProgressView().controlSize(.small)
-                    Text("Loading builds…")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if store.remoteGrouped(in: .stable).isEmpty
-                        && store.remoteGrouped(in: .daily).isEmpty
-                        && store.remoteGrouped(in: .experimental).isEmpty {
-                ContentUnavailableView(
-                    "Catalogue Unavailable",
-                    systemImage: "wifi.slash",
-                    description: Text("No builds came back from blender.org. Press ⌘R to try again.")
-                )
-            } else {
-                list
-            }
+        VStack(spacing: 0) {
+            header
+            Divider().opacity(0.5)
+            content
         }
-        .toolbar {
-            // Sits above the inspector, so the spinner reads as belonging to
-            // the catalogue rather than to the library beside it.
-            ToolbarItem {
-                if store.isFetching {
-                    ProgressView()
-                        .controlSize(.small)
-                        .transition(.opacity)
-                }
-            }
+        .background {
+            RoundedRectangle(cornerRadius: Theme.Metrics.sidebarCorner, style: .continuous)
+                .fill(.regularMaterial)
         }
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.Metrics.sidebarCorner, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.sidebarCorner, style: .continuous))
+        // What separates a floating pane from a docked one: the library has
+        // to look like it continues underneath.
+        .shadow(color: .black.opacity(0.28), radius: 18, y: 6)
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Text("Catalogue")
+                .font(.system(size: 12, weight: .semibold))
+
+            Spacer(minLength: 4)
+
+            if store.isFetching {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.7)
+                    .frame(width: 14, height: 14)
+                    .transition(.opacity)
+            }
+
+            MinimumVersionMenu()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - List
+
+    @ViewBuilder
+    private var content: some View {
+        if store.isFetching && store.stable.isEmpty {
+            VStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text("Loading builds…")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if isEmpty {
+            VStack(spacing: 6) {
+                Text("Nothing to show")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("No builds at or above \(store.minVersionString) came back from blender.org.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            list
+        }
+    }
+
+    private var isEmpty: Bool {
+        BuildBranch.allCases.allSatisfy { store.remoteGrouped(in: $0).isEmpty }
     }
 
     private var list: some View {
@@ -53,9 +96,10 @@ struct CataloguePane: View {
                 }
             }
             .padding(.horizontal, Theme.Metrics.rowInset)
-            .padding(.bottom, Theme.Metrics.windowMargin)
+            .padding(.bottom, Theme.Metrics.rowInset)
             .animation(.smooth(duration: 0.28), value: store.expandedMinorKeys)
         }
+        .scrollContentBackground(.hidden)
     }
 
     @ViewBuilder
@@ -70,6 +114,49 @@ struct CataloguePane: View {
                     GroupCard(group: group, branch: branch)
                 }
             }
+        }
+    }
+}
+
+/// How far back the stable archive is scraped.
+///
+/// This is the only setting the app has, and it belongs to the catalogue —
+/// which is why it lives at the top of the catalogue rather than behind a
+/// window of its own.
+struct MinimumVersionMenu: View {
+    @EnvironmentObject private var bridge: StoreBridge
+    private var store: BuildStore { bridge.store }
+
+    /// The offered floors, plus whatever is currently set if a hand-edited
+    /// settings file named something off the list.
+    private var options: [String] {
+        var all = BuildStore.minVersionChoices
+        if !all.contains(store.minVersionString) {
+            all.append(store.minVersionString)
+        }
+        return all.sorted { (Version($0) ?? .zero) < (Version($1) ?? .zero) }
+    }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Text("from")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            Picker("Oldest version to list", selection: Binding(
+                get: { store.minVersionString },
+                set: { store.setMinVersion($0) }
+            )) {
+                ForEach(options, id: \.self) { version in
+                    Text(version).monospacedDigit().tag(version)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .controlSize(.small)
+            .fixedSize()
+            .help("Hide every release older than this")
+            .handCursor()
         }
     }
 }
@@ -98,7 +185,7 @@ struct GroupCard: View {
                 .transition(.opacity)
             }
         }
-        .background(RowCard(hovered: hovered))
+        .background(RowCard(hovered: hovered, tinted: true))
         .onHover { hovered = $0 }
     }
 
@@ -141,7 +228,7 @@ struct GroupCard: View {
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     .frame(width: 12)
             }
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

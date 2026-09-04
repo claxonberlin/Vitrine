@@ -48,6 +48,11 @@ public final class BuildStore {
     /// Last failure worth showing. Settable so the UI can dismiss it.
     public var lastError: String? { didSet { notify() } }
 
+    /// Local file holding the splash artwork of the newest stable release, or
+    /// nil until it has been fetched — or for good, if blender.org couldn't
+    /// be reached. Front ends paint it behind the window.
+    public private(set) var splashArtwork: URL? { didSet { notify() } }
+
     // MARK: - Settings
 
     public private(set) var libraryPath: String { didSet { notify() } }
@@ -59,6 +64,7 @@ public final class BuildStore {
     private let config = ConfigStore()
     private var settings: VitrineSettings
     private let downloadManager = DownloadManager()
+    private let splashLibrary = SplashLibrary()
     private var downloadTasks: [String: Task<Void, Never>] = [:]
     /// Front ends subscribed through `observeChanges`. See StoreObservation.
     var observers: [Observer] = []
@@ -102,6 +108,18 @@ public final class BuildStore {
         async let d: Void = refreshDaily()
         async let e: Void = refreshExperimental()
         _ = await (l, s, d, e)
+        // Last, because it needs the stable list to know which release is the
+        // newest one to ask for artwork about.
+        await refreshSplash()
+    }
+
+    /// Fetches the splash artwork of the newest stable release. Silent on
+    /// failure: a window with no picture behind it is not an error worth
+    /// interrupting anyone over.
+    public func refreshSplash() async {
+        guard let series = stable.first?.parsedVersion.minorKey else { return }
+        guard let artwork = await splashLibrary.artwork(forSeries: series) else { return }
+        splashArtwork = artwork
     }
 
     /// Failure here is deliberately silent: the cached list stays in place and
@@ -439,17 +457,16 @@ public final class BuildStore {
 
     // MARK: - Settings mutation
     //
-    // Written as methods rather than settable properties: both of these have
-    // to persist to disk and re-query, which is more than a caller should
-    // trigger by assigning to a field.
+    // Written as a method rather than a settable property: it persists to
+    // disk and re-queries, which is more than a caller should trigger by
+    // assigning to a field.
 
-    public func setLibraryPath(_ path: String) {
-        guard path != libraryPath else { return }
-        libraryPath = path
-        settings.libraryPath = path
-        config.save(settings)
-        reloadInstalled()
-    }
+    /// The floors offered in the UI. Every entry opens a Blender series that
+    /// people still reach back for; scraping below 2.80 means walking a
+    /// decade of directories for builds nobody installs.
+    public static let minVersionChoices = [
+        "2.80", "2.93", "3.0", "3.3", "3.6", "4.0", "4.2", "4.5", "5.0"
+    ]
 
     /// Rejects anything that isn't a version, leaving the current value in
     /// place, and reports whether it took.
@@ -463,7 +480,12 @@ public final class BuildStore {
         config.save(settings)
         // Re-fetch the stable archive against the new threshold; daily and
         // experimental are short lists, so filtering in memory is enough.
-        Task { await refreshStable() }
+        // The newest stable release can change with it, so the artwork is
+        // re-checked too.
+        Task {
+            await refreshStable()
+            await refreshSplash()
+        }
         return true
     }
 }

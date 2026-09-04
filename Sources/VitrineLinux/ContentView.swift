@@ -21,7 +21,9 @@ struct ContentView: WindowView {
         OverlaySplitView(visible: $catalogueVisible) {
             CatalogueView()
                 .topToolbar {
-                    HeaderBar.end {
+                    HeaderBar {
+                        MinimumVersionMenu()
+                    } end: {
                         if store.isFetching {
                             Spinner()
                                 .valign(.center)
@@ -125,10 +127,6 @@ struct ContentView: WindowView {
                 }
             }
             MenuSection {
-                MenuButton("Preferences", window: false) {
-                    app.addWindow("preferences")
-                }
-                .keyboardShortcut("comma".ctrl())
                 MenuButton("About Vitrine") { about = true }
                 MenuButton("Quit", window: false) { app.quit() }
                     .keyboardShortcut("q".ctrl())

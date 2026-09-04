@@ -122,7 +122,7 @@ struct RemoteRow: View {
         .padding(.horizontal, Theme.Metrics.rowInset)
         .frame(height: compact ? Theme.Metrics.compactRowHeight : Theme.Metrics.rowHeight)
         .background {
-            if drawsCard { RowCard(hovered: hovered) }
+            if drawsCard { RowCard(hovered: hovered, tinted: true) }
         }
         .onHover { hovered = $0 }
         .help(build.fileName)

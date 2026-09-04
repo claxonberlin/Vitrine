@@ -177,3 +177,32 @@ struct CatalogueAction: View {
         }
     }
 }
+
+/// How far back the stable archive is scraped.
+///
+/// This is the only setting the app has, and it belongs to the catalogue —
+/// which is why it sits in the catalogue's own header bar rather than behind a
+/// preferences window.
+///
+/// The entries are written out rather than looped over
+/// `BuildStore.minVersionChoices`: a GMenu is built from a static model, and
+/// spelling the items out keeps this to constructs the menu builder is known
+/// to accept. Keep the two lists in step.
+struct MinimumVersionMenu: View {
+    private var store: BuildStore { Shared.store }
+
+    var view: Body {
+        Menu("from \(store.minVersionString)") {
+            MenuButton("2.80") { store.setMinVersion("2.80") }
+            MenuButton("2.93") { store.setMinVersion("2.93") }
+            MenuButton("3.0") { store.setMinVersion("3.0") }
+            MenuButton("3.3") { store.setMinVersion("3.3") }
+            MenuButton("3.6") { store.setMinVersion("3.6") }
+            MenuButton("4.0") { store.setMinVersion("4.0") }
+            MenuButton("4.2") { store.setMinVersion("4.2") }
+            MenuButton("4.5") { store.setMinVersion("4.5") }
+            MenuButton("5.0") { store.setMinVersion("5.0") }
+        }
+        .tooltip("Hide every release older than this")
+    }
+}

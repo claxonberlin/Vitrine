@@ -4,9 +4,13 @@ import VitrineKit
 
 /// macOS entry point.
 ///
-/// The window itself is stock SwiftUI: a unified title bar, a real toolbar,
-/// and a `Settings` scene on ⌘, — the things AppKit already knows how to do
-/// well, done its way rather than reimplemented.
+/// The window itself is stock SwiftUI: a unified title bar and a real
+/// toolbar, the things AppKit already knows how to do well, done its way
+/// rather than reimplemented.
+///
+/// There is no settings window. The app has exactly one setting — how far
+/// back to scrape the stable archive — and it sits at the top of the
+/// catalogue, next to the list it governs.
 @main
 @MainActor
 struct VitrineApp: App {
@@ -28,10 +32,7 @@ struct VitrineApp: App {
             ContentView()
                 .environmentObject(bridge)
                 .background(WindowConfigurator { window in
-                    // Restores the size and position from the last session.
-                    // On a first launch there is nothing saved, so the window
-                    // opens at `defaultSize` below.
-                    window.setFrameAutosaveName("app.vitrine.main")
+                    FrameKeeper.shared.attach(to: window)
                     // AppKit hands first responder to the first control it
                     // finds, so the window opened with a focus ring around
                     // whichever build happened to sit at the top of the list.
@@ -40,8 +41,8 @@ struct VitrineApp: App {
                     window.makeFirstResponder(nil)
                 })
         }
-        .defaultSize(width: Theme.Metrics.windowMinWidth,
-                     height: Theme.Metrics.windowMinHeight)
+        .defaultSize(width: Theme.Metrics.windowDefaultWidth,
+                     height: Theme.Metrics.windowDefaultHeight)
         .windowResizability(.contentMinSize)
         // The title is drawn as a principal toolbar item so it stays centred
         // over the content, which is how the window has always looked.
@@ -54,6 +55,13 @@ struct VitrineApp: App {
                 }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(store.isFetching)
+
+                // The library folder used to be reachable from the settings
+                // window. It is worth keeping a way in, and the menu bar is
+                // where a Mac app puts one.
+                Button("Reveal Library in Finder") {
+                    store.revealLibrary()
+                }
             }
             CommandMenu("Blender") {
                 Button("Blender Downloads") {
@@ -66,10 +74,6 @@ struct VitrineApp: App {
                     store.openInBrowser("https://www.blender.org/download/lts/")
                 }
             }
-        }
-
-        Settings {
-            SettingsView().environmentObject(bridge)
         }
     }
 
@@ -130,4 +134,62 @@ struct WindowConfigurator: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+/// Remembers the window's size and position across launches.
+///
+/// SwiftUI autosaves the frame already, but under a key derived from the
+/// content view's *type*: change anything about the view hierarchy and the key
+/// changes with it, so the window forgets where it was and reopens at its
+/// minimum size. Setting `frameAutosaveName` ourselves doesn't hold — SwiftUI
+/// assigns its own after the window is configured — so the frame is kept here
+/// under a name that never moves.
+@MainActor
+final class FrameKeeper {
+    static let shared = FrameKeeper()
+
+    private static let key = "MainWindowFrame"
+    private var attached = false
+
+    func attach(to window: NSWindow) {
+        guard !attached else { return }
+        attached = true
+
+        if let frame = savedFrame() {
+            window.setFrame(frame, display: false)
+        } else {
+            // First launch. The scene's `defaultSize` doesn't survive contact
+            // with a content view this flexible — SwiftUI sizes the window
+            // from the content and lands on the minimum width — so the
+            // opening size is set here instead, where it sticks.
+            window.setContentSize(NSSize(width: Theme.Metrics.windowDefaultWidth,
+                                         height: Theme.Metrics.windowDefaultHeight))
+            window.center()
+        }
+
+        for name in [NSWindow.didResizeNotification, NSWindow.didMoveNotification] {
+            // Recorded on every resize and move, so a crash or a force-quit
+            // loses nothing.
+            NotificationCenter.default.addObserver(
+                forName: name, object: window, queue: .main
+            ) { note in
+                guard let window = note.object as? NSWindow else { return }
+                MainActor.assumeIsolated {
+                    UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: Self.key)
+                }
+            }
+        }
+    }
+
+    /// The stored frame, unless it belongs to a display that is no longer
+    /// attached — reopening a window somewhere the user cannot see it is
+    /// worse than forgetting where it was.
+    private func savedFrame() -> NSRect? {
+        guard let saved = UserDefaults.standard.string(forKey: Self.key) else { return nil }
+        let frame = NSRectFromString(saved)
+        guard frame.width > 0, frame.height > 0,
+              NSScreen.screens.contains(where: { $0.visibleFrame.intersects(frame) })
+        else { return nil }
+        return frame
+    }
 }

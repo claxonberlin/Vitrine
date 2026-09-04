@@ -5,15 +5,35 @@ import VitrineKit
 /// still tells you which row you are on.
 struct RowCard: View {
     var hovered: Bool = false
+    /// Rows in the library sit straight on the splash artwork and need to
+    /// frost it to stay readable. Rows in the catalogue pane are already on a
+    /// sheet of material, and a second sheet over the first goes muddy, so
+    /// they tint instead.
+    var tinted: Bool = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
-            .fill(Theme.rowFill(hovered: hovered))
+        shape
+            .overlay {
+                if hovered {
+                    RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
+                        .fill(Color.primary.opacity(0.06))
+                }
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
                     .strokeBorder(Theme.rowStroke, lineWidth: 0.5)
             }
             .animation(.smooth(duration: 0.15), value: hovered)
+    }
+
+    @ViewBuilder
+    private var shape: some View {
+        let rect = RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
+        if tinted {
+            rect.fill(Theme.rowTint(hovered: false))
+        } else {
+            rect.fill(.regularMaterial)
+        }
     }
 }
 

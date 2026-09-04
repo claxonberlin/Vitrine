@@ -23,8 +23,17 @@ a build, wiring the starred build into the desktop.
 
 The front ends share no code and no widget vocabulary, because looking at home
 on either desktop means using what that desktop already has: a unified title
-bar, an inspector and a `Settings` scene on macOS; a header bar, an overlay
-split view and `PreferencesPage` rows on GNOME.
+bar and a real toolbar on macOS; a header bar and an overlay split view on
+GNOME.
+
+The catalogue floats over the library rather than splitting the window, so
+opening it never resizes anything. Behind both sits the splash artwork of the
+newest Blender release, fetched from that release's own announcement page.
+
+There is no settings window on either platform. The app has one setting — how
+far back to scrape the stable archive — and it sits at the top of the
+catalogue, next to the list it governs. The library folder is read from
+`settings.json`, which is plain JSON and meant to be hand-edited.
 
 `Package.swift` picks the front end. A package manifest is compiled and run on
 the host, so `#if os(Linux)` there decides what a build on *this* machine even
@@ -84,6 +93,7 @@ Linux unpack path, which only runs when the tests are built on Linux.
 | Path | |
 | --- | --- |
 | `Sources/VitrineKit/BlenderAPI.swift` | catalogue fetch and parsing |
+| `Sources/VitrineKit/Splash.swift` | splash artwork fetch and cache |
 | `Sources/VitrineKit/Installer.swift` | download → unpack → library layout |
 | `Sources/VitrineKit/BuildStore.swift` | the view model both front ends drive |
 | `Sources/VitrineKit/Platform/` | the per-OS half |

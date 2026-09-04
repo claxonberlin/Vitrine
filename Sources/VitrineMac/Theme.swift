@@ -33,23 +33,24 @@ enum Theme {
 
         static let windowMinWidth: CGFloat = 380
         static let windowMinHeight: CGFloat = 430
+        static let windowDefaultWidth: CGFloat = 560
+        static let windowDefaultHeight: CGFloat = 560
 
-        /// The catalogue inspector: wide enough for a download button, a
+        /// The floating catalogue pane: wide enough for a download button, a
         /// badge and a file size on one line.
-        static let inspectorMin: CGFloat = 250
-        static let inspectorIdeal: CGFloat = 268
-        static let inspectorMax: CGFloat = 380
+        static let sidebarWidth: CGFloat = 264
+        static let sidebarCorner: CGFloat = 16
 
         /// Every button in the app is a pill, so its radius is half its
         /// height and it stays fully round at any size.
         static func pill(_ height: CGFloat) -> CGFloat { height / 2 }
     }
 
-    /// Card fill behind a row. Layered over whatever the window paints, so one
-    /// definition reads correctly in both appearances and inside the
-    /// inspector, where the pane background is already a shade off.
-    static func rowFill(hovered: Bool) -> some ShapeStyle {
-        Color.primary.opacity(hovered ? 0.11 : 0.06)
+    /// Card fill for a row sitting inside the catalogue pane, which is
+    /// already a sheet of material — a second sheet on top of it would go
+    /// muddy, so these rows tint rather than frost.
+    static func rowTint(hovered: Bool) -> Color {
+        Color.primary.opacity(hovered ? 0.13 : 0.07)
     }
 
     static let rowStroke = Color.primary.opacity(0.07)
