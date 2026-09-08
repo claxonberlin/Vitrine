@@ -2,11 +2,16 @@ import SwiftUI
 import VitrineKit
 
 /// The whole app in one window: the installed library fills it, and the
-/// catalogue floats in over the trailing edge.
+/// catalogue slides in from the trailing edge as a second page.
 ///
-/// The catalogue is an overlay, not a split. It lies on top of the library
-/// rather than taking space from it, so opening it never resizes the window
-/// or shoves the list sideways.
+/// It isn't a real split — the window never resizes, and the library never
+/// gives up any of its own width — but it reads like one: opening the
+/// catalogue pushes the library most of the way out of its path rather than
+/// merely covering it, so the two feel like adjacent pages rather than a
+/// panel laid on top. `catalogueLibraryPush` is "most of the way" rather
+/// than the catalogue's full width, so the library's trailing edge still
+/// slips a little under the incoming page instead of the two just kissing
+/// edges — the same small overlap a real page transition leaves behind.
 ///
 /// Branches are not tabs. Both lists show every branch at once under a plain
 /// heading, so nothing is hidden behind a control you have to discover first.
@@ -26,9 +31,17 @@ struct ContentView: View {
     /// there is no selector to read one from.
     private static let customBuildBranch: BuildBranch = .stable
 
-    /// Far enough right to clear the pane, its margin and its shadow.
+    /// Far enough right to clear the page entirely — there's no margin or
+    /// shadow to clear any more, so this is exactly its own width.
     private static var catalogueHiddenOffset: CGFloat {
-        Theme.Metrics.sidebarWidth + Theme.Metrics.windowMargin * 2 + 24
+        Theme.Metrics.sidebarWidth
+    }
+
+    /// How far the library slides left while the catalogue is open: most of
+    /// the incoming page's width, not all of it, so the two overlap by a
+    /// sliver instead of sitting flush — see the type's own doc comment.
+    private static var catalogueLibraryPush: CGFloat {
+        Theme.Metrics.sidebarWidth * 0.85
     }
 
     /// The window can never be narrower than the widest row actually needs —
@@ -47,14 +60,17 @@ struct ContentView: View {
                 ErrorBanner()
                 LibraryPane()
             }
+            // Slides left to make room for the incoming page rather than
+            // staying put underneath it — see the type's own doc comment.
+            .offset(x: showingCatalogue ? -Self.catalogueLibraryPush : 0)
 
-            // The pane stays mounted and slides in and out on its offset.
+            // The page stays mounted and slides in and out on its offset.
             // A conditional view with a `move` transition only animated the
             // way in: SwiftUI tore the pane down on the way out before the
             // slide could play, so hiding the catalogue snapped.
             CataloguePane()
                 .frame(width: Theme.Metrics.sidebarWidth)
-                .padding(Theme.Metrics.windowMargin)
+                .frame(maxHeight: .infinity)
                 .offset(x: showingCatalogue ? 0 : Self.catalogueHiddenOffset)
                 .opacity(showingCatalogue ? 1 : 0)
                 .allowsHitTesting(showingCatalogue)
@@ -91,12 +107,17 @@ struct ContentView: View {
             .sharedBackgroundHidden()
     }
 
+    /// Stands in for the catalogue's own title now that it doesn't have
+    /// one — the same way a real second page would rename the window
+    /// rather than relabel itself. See `CataloguePane`'s doc comment.
     private var titleLabel: some View {
-        Text("Vitrine")
+        Text(showingCatalogue ? "Catalogue" : "Vitrine")
             .font(.system(size: 13, weight: .semibold))
+            .contentTransition(.opacity)
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
             .background(TitlePillBackground())
+            .animation(.smooth(duration: 0.2), value: showingCatalogue)
     }
 
     @ToolbarContentBuilder

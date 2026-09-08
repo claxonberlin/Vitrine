@@ -55,10 +55,9 @@ enum Theme {
         static let windowDefaultWidth: CGFloat = windowMinWidth
         static let windowDefaultHeight: CGFloat = 560
 
-        /// The floating catalogue pane: wide enough for a download button, a
-        /// badge and a file size on one line.
+        /// The catalogue page: wide enough for a download button, a badge
+        /// and a file size on one line.
         static let sidebarWidth: CGFloat = 264
-        static let sidebarCorner: CGFloat = 16
 
         /// Every button in the app is a pill, so its radius is half its
         /// height and it stays fully round at any size.

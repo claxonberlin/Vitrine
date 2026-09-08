@@ -1,11 +1,20 @@
 import SwiftUI
 import VitrineKit
 
-/// The remote catalogue, as a pane floating over the library.
+/// The remote catalogue, as a second page trailing the library rather than a
+/// panel laid on top of it.
 ///
-/// It has its own material, corner radius and shadow rather than sitting in a
-/// split, so it reads as a sheet laid on the window instead of a region cut
-/// out of it — and the library underneath keeps the width it had.
+/// It shares the library's own height and glass vocabulary — no card, no
+/// corner radius, no shadow — and a hairline divider is all that separates
+/// the two, the way a split view would, even though this isn't one:
+/// `ContentView` slides it in from off the trailing edge and pushes the
+/// library most of the way out of its path rather than resizing anything,
+/// so opening it never changes the window's own width.
+///
+/// There's no title here any more — with the library pushed aside rather
+/// than merely covered, the toolbar's own title stands in for it (see
+/// `ContentView.titleLabel`), the way a real second page would rename the
+/// window instead of relabelling itself.
 ///
 /// The list is fetched once when the window opens; there is nothing a second
 /// fetch would tell you that the first didn't. ⌘R is there for the rare case.
@@ -14,30 +23,30 @@ struct CataloguePane: View {
     private var store: BuildStore { bridge.store }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-                .background(glassFill)
-            Divider().opacity(0.5)
-            content
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: Theme.Metrics.sidebarCorner, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Metrics.sidebarCorner, style: .continuous))
-        // What separates a floating pane from a docked one: the library has
-        // to look like it continues underneath.
-        .shadow(color: .black.opacity(0.28), radius: 18, y: 6)
+        content
+            .overlay(alignment: .leading) {
+                Rectangle().fill(Theme.rowStroke).frame(width: 0.5)
+            }
+            .overlay(alignment: .topTrailing) {
+                if store.isFetching {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
+                        .frame(width: 14, height: 14)
+                        .padding(14)
+                        .transition(.opacity)
+                }
+            }
+            .clipped()
     }
 
-    /// The pane's glass, applied separately to the header and to whatever's
-    /// below the divider rather than once behind the whole pane. The list's
-    /// own copy is what a scroll-edge effect can actually reach — a fill
-    /// painted on some ancestor of the scroll view never dissolves with it,
-    /// it just sits there unaffected once the scrolled copy fades, which
-    /// looks like the glass failing rather than blurring. A plain
-    /// `Rectangle` is enough either place: the outer `clipShape` on the
-    /// whole pane already trims everything to the rounded corners.
+    /// The pane's glass. A plain `Rectangle` is enough: `clipped()` on the
+    /// whole pane trims it to the window's own bounds, and there's no corner
+    /// radius left to cut. The list's own copy, rather than one shared
+    /// ancestor fill, is what lets `scrollEdgeEffectStyle` actually reach
+    /// it — a fill painted above the scroll view never dissolves with it, it
+    /// just sits there unaffected once the scrolled copy fades, which looks
+    /// like the glass failing rather than blurring.
     @ViewBuilder
     private var glassFill: some View {
         if #available(macOS 26.0, *) {
@@ -45,32 +54,6 @@ struct CataloguePane: View {
         } else {
             Rectangle().fill(.ultraThinMaterial)
         }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        // The title is centred over the whole header regardless of the
-        // spinner beside it — a trailing-aligned sibling in the same HStack
-        // would have pushed it off-centre only while fetching.
-        ZStack {
-            Text("Catalogue")
-                .font(.system(size: 12, weight: .semibold))
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            HStack {
-                Spacer()
-                if store.isFetching {
-                    ProgressView()
-                        .controlSize(.small)
-                        .scaleEffect(0.7)
-                        .frame(width: 14, height: 14)
-                        .transition(.opacity)
-                }
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
     }
 
     // MARK: - List
