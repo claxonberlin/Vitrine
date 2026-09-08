@@ -39,7 +39,6 @@ struct CataloguePane: View {
                         .transition(.opacity)
                 }
             }
-            .clipped()
     }
 
     // MARK: - List
