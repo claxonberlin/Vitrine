@@ -11,7 +11,6 @@ enum Icon: String {
     case addBuild = "folder-add"
     case library = "apps"
     case catalogue = "book-open"
-    case settings
     case download
     case update = "circle-arrow-up"
     case trash = "delete"

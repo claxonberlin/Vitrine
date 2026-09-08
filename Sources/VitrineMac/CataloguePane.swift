@@ -36,6 +36,7 @@ struct CataloguePane: View {
                         .scaleEffect(0.7)
                         .frame(width: 14, height: 14)
                         .padding(14)
+                        .accessibilityLabel("Reloading the catalogue")
                         .transition(.opacity)
                 }
             }
@@ -53,7 +54,7 @@ struct CataloguePane: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if isEmpty {
+        } else if store.catalogueIsEmpty {
             VStack(spacing: 6) {
                 Text("Nothing to show")
                     .font(.system(size: 12, weight: .semibold))
@@ -67,10 +68,6 @@ struct CataloguePane: View {
         } else {
             list
         }
-    }
-
-    private var isEmpty: Bool {
-        BuildBranch.allCases.allSatisfy { store.remoteGrouped(in: $0).isEmpty }
     }
 
     private var list: some View {
@@ -137,7 +134,7 @@ struct GroupCard: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Theme.Metrics.rowSpacing) {
             // Dimmed once the group opens: every build inside now has its
             // own download button, so the header's own action reads as a
             // shortcut for the latest one rather than the row's main control.
@@ -145,11 +142,8 @@ struct GroupCard: View {
                 .opacity(isExpanded ? 0.4 : 1)
                 .animation(.smooth(duration: 0.2), value: isExpanded)
 
-            BadgeRow(
-                riskLabel: (branch == .stable && group.latest.riskId == "stable")
-                    ? nil : group.latest.riskLabel,
-                isLTS: store.isLTS(group.latest.version)
-            )
+            BadgeRow(riskLabel: group.latest.riskLabel(under: branch),
+                     isLTS: store.isLTS(group.latest.version))
 
             Spacer(minLength: 4)
 
@@ -157,11 +151,13 @@ struct GroupCard: View {
         }
         .padding(.horizontal, Theme.Metrics.rowInset)
         .frame(height: Theme.Metrics.rowHeight)
-        // Anywhere in the header works as well as the chevron does. The
-        // button below is what makes the same thing reachable by keyboard
-        // and readable to VoiceOver — a tap gesture alone is neither.
+        // Anywhere in the header folds the group, not just the chevron in its
+        // corner — so the whole bar takes the pointing hand, and the button
+        // inside it is what carries the same action to the keyboard and to
+        // VoiceOver, which a tap gesture reaches neither of.
         .contentShape(Rectangle())
         .onTapGesture { store.toggleExpansion(group.minorKey) }
+        .handCursor()
     }
 
     private var disclosure: some View {
@@ -183,10 +179,10 @@ struct GroupCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .handCursor()
         .help(isExpanded ? "Collapse \(group.minorKey)" : "Show every \(group.minorKey) release")
         .accessibilityLabel(isExpanded
                             ? "Collapse Blender \(group.minorKey)"
                             : "Show all \(group.builds.count) Blender \(group.minorKey) releases")
+        .accessibilityAddTraits(.isToggle)
     }
 }

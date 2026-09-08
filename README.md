@@ -31,9 +31,10 @@ opening it never resizes anything. Behind both sits the splash artwork of the
 newest Blender release, fetched from that release's own announcement page.
 
 There is no settings window on either platform. The app has one setting — how
-far back to scrape the stable archive — and it sits at the top of the
-catalogue, next to the list it governs. The library folder is read from
-`settings.json`, which is plain JSON and meant to be hand-edited.
+far back to scrape the stable archive — and each front end puts it where that
+desktop would: the View menu on macOS, the header bar's menu on GNOME. The
+library folder is read from `settings.json`, which is plain JSON and meant to
+be hand-edited.
 
 `Package.swift` picks the front end. A package manifest is compiled and run on
 the host, so `#if os(Linux)` there decides what a build on *this* machine even
@@ -97,7 +98,7 @@ Linux unpack path, which only runs when the tests are built on Linux.
 | `Sources/VitrineKit/Installer.swift` | download → unpack → library layout |
 | `Sources/VitrineKit/BuildStore.swift` | the view model both front ends drive |
 | `Sources/VitrineKit/Platform/` | the per-OS half |
-| `Resources/Icons/` | SVG icon sources; the macOS target ships them as-is |
+| `Sources/VitrineMac/Resources/Icons/` | SVG icon sources; the macOS target ships them as-is |
 
 Installed builds live under `⟨library⟩/⟨branch⟩/⟨build⟩/`, each with a
 `.vitrine.json` beside it. The layout is self-describing: a fresh launch

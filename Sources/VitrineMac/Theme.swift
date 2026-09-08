@@ -2,18 +2,21 @@ import SwiftUI
 
 /// Shared visual constants.
 ///
-/// Only the two accents are fixed colours; everything else defers to the
-/// system palette so the window follows the user's appearance, accent and
+/// Only the two brand colours are fixed; everything else defers to the system
+/// palette so the window follows the user's appearance, accent and
 /// increase-contrast settings without a second definition for dark mode.
 enum Theme {
-    /// The library's blue.
-    static let vitrineAccent = Color(red: 0.0, green: 0.48, blue: 1.0)
     /// Blender's brand orange (#EA7600), so the catalogue reads as the other
     /// half of the app at a glance.
     static let catalogueAccent = Color(red: 0.918, green: 0.463, blue: 0.0)
     /// The blue half of the Blender logo (#265787). Launch is the one button
     /// that starts Blender itself, so it wears Blender's own colour.
     static let blenderBlue = Color(red: 0.149, green: 0.341, blue: 0.529)
+
+    /// The hairline around every card, and the fill a card takes on under the
+    /// pointer.
+    static let rowStroke = Color.primary.opacity(0.07)
+    static let rowHoverFill = Color.primary.opacity(0.06)
 
     enum Metrics {
         /// The spacing unit that sets the row rhythm: a row's action button
@@ -22,9 +25,11 @@ enum Theme {
         static let rowInset: CGFloat = 6
         /// The single margin used everywhere content meets the window.
         static let windowMargin: CGFloat = 12
+        /// The gap between a row's own controls.
+        static let rowSpacing: CGFloat = 8
 
         static let actionHeight: CGFloat = 32
-        static let pillWidth: CGFloat = 78     // text-only actions (Launch, Put Back, Stop, Retry)
+        static let pillWidth: CGFloat = 78     // text-only actions (Launch, Stop, Retry)
 
         /// How much bigger a real Liquid Glass button renders than the
         /// frame given to its own label — measured directly against a
@@ -43,24 +48,17 @@ enum Theme {
         static let corner: CGFloat = 12          // row / group cards
         static let iconSize: CGFloat = 16
 
-        /// A floor only: what a library row needs (see `RowMinWidthKey`)
-        /// almost always sets the real minimum higher than this. It only
-        /// governs an empty library, which has no row to measure.
+        /// Wide enough for a library row at its usual shape: the Launch
+        /// pill, a version with its LTS chip, an update button, both dates
+        /// and the overflow menu, with the margins either side. Rows used to
+        /// measure this for themselves, which meant drawing a second hidden
+        /// copy of every one of them; the number that produced was 359, and
+        /// only an unusually long custom build name beats it. That one
+        /// truncates.
         static let windowMinWidth: CGFloat = 380
         static let windowMinHeight: CGFloat = 430
-        /// The width the Scene asks for before the window exists to measure
-        /// anything — `FrameKeeper` replaces it within the same launch with
-        /// whatever the content actually turned out to need, so this value
-        /// itself is never what the user sees.
-        static let windowDefaultWidth: CGFloat = windowMinWidth
         static let windowDefaultHeight: CGFloat = 560
-
-        /// Every button in the app is a pill, so its radius is half its
-        /// height and it stays fully round at any size.
-        static func pill(_ height: CGFloat) -> CGFloat { height / 2 }
     }
-
-    static let rowStroke = Color.primary.opacity(0.07)
 }
 
 extension View {
@@ -68,7 +66,10 @@ extension View {
     ///
     /// An AppKit cursor rect rather than `NSCursor.push`/`pop`: cursor rects
     /// are managed by the window and can't leak a stuck cursor when SwiftUI
-    /// tears the view down mid-hover.
+    /// tears the view down mid-hover. SwiftUI's own `pointerStyle` was tried
+    /// here and reverted — its regions came and went unreliably in the
+    /// toolbar, leaving the pointing hand behind after the pointer had moved
+    /// on, which is the very thing cursor rects are here to avoid.
     func handCursor() -> some View {
         overlay(HandCursorOverlay().allowsHitTesting(false))
     }

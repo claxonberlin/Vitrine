@@ -20,15 +20,12 @@ import VitrineKit
 /// heading, so nothing is hidden behind a control you have to discover first.
 struct ContentView: View {
     @EnvironmentObject private var bridge: StoreBridge
+    @EnvironmentObject private var menu: MenuState
     private var store: BuildStore { bridge.store }
 
-    @AppStorage("showingCatalogue") private var showingCatalogue = false
-    @State private var choosingBuild = false
-    /// The narrowest a library row's content can be without wrapping or
-    /// clipping, gathered from every row on screen — see `RowMinWidthKey`.
-    /// Floored at the old fixed minimum, which still has to hold when the
-    /// library is empty and has no row to measure.
-    @State private var measuredRowWidth: CGFloat = 0
+    /// Both live on `MenuState` rather than in `@State`, because the menu bar
+    /// drives them too and a menu cannot reach a view's own state.
+    private var showingCatalogue: Bool { menu.catalogueShown }
 
     /// Builds the user adds by hand have no branch of their own to infer, and
     /// there is no selector to read one from.
@@ -41,14 +38,6 @@ struct ContentView: View {
     /// size instead of a fixed-width strip that a wide window would dwarf.
     private static let catalogueTravelFraction: CGFloat = 0.85
 
-    /// The window can never be narrower than the widest row actually needs —
-    /// the row's own measured width plus the margin either side of it — with
-    /// the old fixed constant as a floor for when the library is empty and
-    /// there's no row to measure yet.
-    private var windowMinWidth: CGFloat {
-        max(measuredRowWidth + Theme.Metrics.windowMargin * 2, Theme.Metrics.windowMinWidth)
-    }
-
     var body: some View {
         GeometryReader { geometry in
             let travel = geometry.size.width * Self.catalogueTravelFraction
@@ -56,31 +45,46 @@ struct ContentView: View {
             ZStack(alignment: .topTrailing) {
                 SplashBackground()
 
-                VStack(spacing: 0) {
-                    ErrorBanner()
-                    LibraryPane()
-                }
+                LibraryPane(showCatalogue: $menu.catalogueShown, addBuild: $menu.addingBuild)
                 // Slides left to make room for the incoming page rather than
                 // staying put underneath it — see the type's own doc comment.
                 .offset(x: showingCatalogue ? -travel : 0)
+                // The sliver left showing down the leading edge is scenery,
+                // not a second copy of the library: its buttons belong to
+                // rows you can no longer read, so they stop taking clicks and
+                // drop out of the keyboard and VoiceOver order — the same
+                // deal the catalogue gets while it is the one parked off the
+                // other edge. Dimming it as well would read nicely and cost
+                // a full-window offscreen composite of every material card on
+                // every frame of the slide, which is not a trade worth making.
+                .allowsHitTesting(!showingCatalogue)
+                .accessibilityHidden(showingCatalogue)
 
                 // The page stays mounted and slides in and out on its
                 // offset. A conditional view with a `move` transition only
                 // animated the way in: SwiftUI tore the pane down on the way
                 // out before the slide could play, so hiding the catalogue
                 // snapped.
+                // Parked, it sits exactly its own width past the trailing
+                // edge, so the window already clips it away and it needs no
+                // fade to hide behind — which matters, because animating one
+                // would composite the whole page offscreen on every frame of
+                // a slide that is otherwise a plain transform.
                 CataloguePane()
                     .frame(width: travel)
                     .frame(maxHeight: .infinity)
                     .offset(x: showingCatalogue ? 0 : travel)
-                    .opacity(showingCatalogue ? 1 : 0)
                     .allowsHitTesting(showingCatalogue)
                     .accessibilityHidden(!showingCatalogue)
             }
+            // Above both pages rather than on top of the library: a catalogue
+            // fetch is the likeliest thing to fail, and its error used to
+            // travel off the edge with the library the moment you opened the
+            // page it was about.
+            .overlay(alignment: .top) { ErrorBanner() }
         }
-        .frame(minWidth: windowMinWidth,
+        .frame(minWidth: Theme.Metrics.windowMinWidth,
                minHeight: Theme.Metrics.windowMinHeight)
-        .onPreferenceChange(RowMinWidthKey.self) { measuredRowWidth = $0 }
         .toolbar {
             titleItem
             addBuildAction
@@ -88,7 +92,7 @@ struct ContentView: View {
         }
         .task { await store.refreshAll() }
         .fileImporter(
-            isPresented: $choosingBuild,
+            isPresented: $menu.addingBuild,
             allowedContentTypes: [.application]
         ) { result in
             if case .success(let url) = result {
@@ -120,15 +124,16 @@ struct ContentView: View {
             .padding(.vertical, 5)
             .background(TitlePillBackground())
             .animation(.smooth(duration: 0.2), value: showingCatalogue)
+            .accessibilityAddTraits(.isHeader)
     }
 
     @ToolbarContentBuilder
     private var addBuildAction: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            ToolbarIconButton(icon: .addBuild) {
-                choosingBuild = true
+            ToolbarIconButton(icon: .addBuild,
+                              label: "Add a Blender build you already have") {
+                menu.addingBuild = true
             }
-            .help("Add a Blender build you already have")
         }
         .sharedBackgroundHidden()
     }
@@ -152,11 +157,11 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var catalogueToggle: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            ToolbarIconButton(icon: .catalogue, active: showingCatalogue, tint: Theme.catalogueAccent) {
-                showingCatalogue.toggle()
+            ToolbarIconButton(icon: .catalogue,
+                              label: showingCatalogue ? "Hide the catalogue" : "Show the catalogue",
+                              toggledOn: showingCatalogue) {
+                menu.catalogueShown.toggle()
             }
-            .help(showingCatalogue ? "Hide the catalogue" : "Show the catalogue")
-            .keyboardShortcut("l", modifiers: [.command, .shift])
         }
         .sharedBackgroundHidden()
     }
@@ -169,7 +174,6 @@ struct ContentView: View {
 /// it, and the identical hairline stroke either way so the two chrome
 /// pieces (row and title) read as the same material at a glance.
 private struct TitlePillBackground: View {
-    @ViewBuilder
     var body: some View {
         let capsule = Capsule()
         Group {
@@ -183,89 +187,34 @@ private struct TitlePillBackground: View {
     }
 }
 
-/// A standalone round toolbar button. On macOS 26 this is real Liquid
-/// Glass — plain glass at rest, filled/tinted glass while active — the
-/// system's own vocabulary for "a toggle sitting in a glass toolbar," the
-/// same shape a real Tahoe app's sidebar or filter toggle uses. Below 26
-/// there's no real glass to reach for, so it falls back to a hand-drawn
-/// light circle: a fixed fill regardless of hover, since `Button`'s own
-/// default styling there draws its own background no matter what
-/// `sharedBackgroundVisibility` says, and only overriding the style
-/// entirely (`.buttonStyle(.plain)`, drawing the circle ourselves) escapes
-/// it.
+/// The catalogue toggle and the add-build button: `CircleIconButton` at the
+/// smaller size the title bar wants, with the toggle's resting state left
+/// unfilled so plain glass reads as "off" and the tinted fill as "on" — the
+/// system's own vocabulary for a toggle sitting in a glass toolbar.
 private struct ToolbarIconButton: View {
     let icon: Icon
-    var active: Bool = false
-    var tint: Color = Theme.catalogueAccent
+    let label: String
+    /// Set only by a control that has an on and an off state, so a plain
+    /// action button isn't announced as a toggle.
+    var toggledOn: Bool? = nil
     let action: () -> Void
 
     private static let diameter: CGFloat = 28
     private static let iconSize: CGFloat = 18
 
-    // Sizing a glass button is measured, not declared — see the note on
-    // `PillButton`/`CircleIconButton` in Controls.swift. The icon is sized
-    // down by the same measured chrome padding so the finished circle
-    // lands back on exactly `diameter`.
-    private var label: some View {
-        IconView(icon: icon, size: Self.iconSize)
-            .frame(width: Self.diameter - Theme.Metrics.glassCirclePadding,
-                   height: Self.diameter - Theme.Metrics.glassCirclePadding)
+    var body: some View {
+        CircleIconButton(icon: icon, label: label, filled: toggledOn == true,
+                         diameter: Self.diameter, iconSize: Self.iconSize,
+                         action: action)
+            .accessibilityAddTraits(traits)
     }
 
-    var body: some View {
-        if #available(macOS 26.0, *) {
-            Group {
-                if active {
-                    Button(action: action) { label }
-                        .buttonStyle(.glassProminent)
-                        .tint(tint)
-                        .buttonBorderShape(.circle)
-                } else {
-                    Button(action: action) { label }
-                        .buttonStyle(.glass)
-                        .buttonBorderShape(.circle)
-                }
-            }
-            .buttonSizing(.fitted)
-            .animation(.smooth(duration: 0.12), value: active)
-            .handCursor()
-        } else {
-            LegacyToolbarIconButton(icon: icon, active: active, tint: tint, action: action)
+    private var traits: AccessibilityTraits {
+        switch toggledOn {
+        case .none: []
+        case .some(true): [.isToggle, .isSelected]
+        case .some(false): .isToggle
         }
-    }
-}
-
-/// The pre-26 fallback: a fixed light circle, since there's no real glass to
-/// reach for below macOS 26.
-private struct LegacyToolbarIconButton: View {
-    let icon: Icon
-    var active: Bool = false
-    var tint: Color = Theme.catalogueAccent
-    let action: () -> Void
-
-    @State private var hovered = false
-
-    private static let diameter: CGFloat = 28
-
-    var body: some View {
-        Button(action: action) {
-            IconView(icon: icon, size: 18)
-                .foregroundStyle(active ? .white : Color.black.opacity(0.72))
-                .frame(width: Self.diameter, height: Self.diameter)
-                .background {
-                    Circle()
-                        .fill(active ? AnyShapeStyle(tint) : AnyShapeStyle(Color.white.opacity(hovered ? 1.0 : 0.82)))
-                }
-                .overlay {
-                    Circle().strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
-                }
-                .shadow(color: .black.opacity(0.22), radius: 2.5, y: 1)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-        .animation(.smooth(duration: 0.12), value: hovered)
-        .animation(.smooth(duration: 0.12), value: active)
-        .handCursor()
     }
 }
 
@@ -306,20 +255,12 @@ extension View {
 struct LibraryPane: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
+    @Binding var showCatalogue: Bool
+    @Binding var addBuild: Bool
 
     var body: some View {
         if store.installed.isEmpty {
-            ContentUnavailableView {
-                Label {
-                    Text("No Builds Installed")
-                } icon: {
-                    IconView(icon: .library, size: 34)
-                        .foregroundStyle(.secondary)
-                }
-            } description: {
-                Text("Open the catalogue to download one, or add a Blender you already have.")
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            emptyState
         } else {
             ScrollView {
                 LazyVStack(spacing: 4) {
@@ -341,6 +282,45 @@ struct LibraryPane: View {
             // `TitlePillBackground`.
             .softScrollEdgeCompat(for: .top)
         }
+    }
+
+    /// Nothing installed yet, and both ways out of that offered here rather
+    /// than left to be found in the toolbar.
+    ///
+    /// On its own card, like everything else in this window: the splash
+    /// artwork behind it is a full-colour painting, and plain text laid
+    /// straight on one is a coin toss between legible and invisible depending
+    /// on which release is current.
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label {
+                Text("No Builds Installed")
+            } icon: {
+                IconView(icon: .library, size: 34)
+                    .foregroundStyle(.secondary)
+            }
+        } description: {
+            Text("Download one from the catalogue, or add a Blender you already have.")
+                .frame(maxWidth: 240)
+        } actions: {
+            HStack(spacing: 10) {
+                Button("Show Catalogue") { showCatalogue = true }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.catalogueAccent)
+                    .handCursor()
+                Button("Add Build…") { addBuild = true }
+                    .handCursor()
+            }
+            // The placeholder sizes its actions row to the description above
+            // it, which clips a two-button row's labels.
+            .fixedSize()
+        }
+        .fixedSize()
+        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .background(RowCard())
+        .padding(Theme.Metrics.windowMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// A branch contributes a heading and its rows, or nothing at all — an
@@ -371,19 +351,22 @@ struct SectionHeader: View {
             .padding(.vertical, 3)
             // The same shape as a badge, not a full-width bar — a heading is
             // a label, not a divider.
-            .background(fill)
+            .background {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    // Real glass adapts its tint to whatever is directly
+                    // behind it, which reads as inconsistent rather than
+                    // crisp for a small badge sitting over the same busy
+                    // artwork a wide row does. `thinMaterial` stays one
+                    // surface regardless — same call as `RowCard`.
+                    .fill(.thinMaterial)
+            }
             .fixedSize()
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, 10)
             .padding(.bottom, 2)
-    }
-
-    // Same call as `RowCard`: real glass adapts its tint to whatever's
-    // directly behind it, which reads as inconsistent rather than crisp for
-    // a small badge sitting over the same busy artwork a wide row does.
-    // `thinMaterial` stays one consistent surface regardless.
-    private var fill: some View {
-        RoundedRectangle(cornerRadius: 5, style: .continuous).fill(.thinMaterial)
+            // Spelled out, the uppercase is read one letter at a time.
+            .accessibilityLabel(title)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -394,36 +377,52 @@ struct ErrorBanner: View {
     private var store: BuildStore { bridge.store }
 
     var body: some View {
-        if let message = store.lastError {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                Text(message)
-                    .font(.system(size: 11))
-                    .lineLimit(2)
-                Spacer(minLength: 8)
-                Button {
-                    store.lastError = nil
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Dismiss")
-                .handCursor()
+        Group {
+            if let message = store.lastError {
+                banner(message)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(errorBannerFill)
-            .padding(.horizontal, Theme.Metrics.windowMargin)
-            .padding(.top, 4)
-            .transition(.move(edge: .top).combined(with: .opacity))
         }
+        .animation(.smooth(duration: 0.25), value: store.lastError)
+    }
+
+    private func banner(_ message: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(.system(size: 11))
+                .lineLimit(2)
+                .textSelection(.enabled)
+            Spacer(minLength: 8)
+            Button {
+                store.lastError = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    // A 9-point glyph is not a target; the frame around it is.
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Dismiss")
+            .accessibilityLabel("Dismiss")
+            .handCursor()
+        }
+        .padding(.leading, 10)
+        .padding(.trailing, 4)
+        .padding(.vertical, 4)
+        .background(fill)
+        .padding(.horizontal, Theme.Metrics.windowMargin)
+        .padding(.top, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Error: \(message)")
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     @ViewBuilder
-    private var errorBannerFill: some View {
+    private var fill: some View {
         // Floating chrome over the library, straight on the artwork — a
         // genuine glass candidate on macOS 26, same reasoning as the row
         // cards it sits above.

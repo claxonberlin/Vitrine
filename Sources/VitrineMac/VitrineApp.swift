@@ -9,28 +9,33 @@ import VitrineKit
 /// rather than reimplemented.
 ///
 /// There is no settings window. The app has exactly one setting — how far
-/// back to scrape the stable archive — and it sits at the top of the
-/// catalogue, next to the list it governs.
+/// back to scrape the stable archive — and one item in the View menu is a
+/// smaller thing to carry than a window built to hold it.
 @main
 @MainActor
 struct VitrineApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    /// A plain stored property rather than `@StateObject`: the App value
-    /// lives as long as the process does, and its initialiser is the one
-    /// main-actor context available before any scene exists.
+    /// The store is held, not observed: it publishes on every change it
+    /// makes, and re-running this body rebuilds the whole menu bar. What the
+    /// menus read and write lives on `MenuState`, which publishes only when
+    /// one of those few values actually moves.
     private let bridge: StoreBridge
+    @ObservedObject private var menu: MenuState
     private var store: BuildStore { bridge.store }
 
     init() {
         Self.sanitizeAppLanguages()
-        bridge = StoreBridge()
+        let bridge = StoreBridge()
+        self.bridge = bridge
+        self.menu = MenuState(store: bridge.store)
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(bridge)
+                .environmentObject(menu)
                 .background(WindowConfigurator { window in
                     FrameKeeper.shared.attach(to: window)
                     // AppKit hands first responder to the first control it
@@ -41,20 +46,44 @@ struct VitrineApp: App {
                     window.makeFirstResponder(nil)
                 })
         }
-        .defaultSize(width: Theme.Metrics.windowDefaultWidth,
+        .defaultSize(width: Theme.Metrics.windowMinWidth,
                      height: Theme.Metrics.windowDefaultHeight)
         .windowResizability(.contentMinSize)
         // The title is drawn as a principal toolbar item so it stays centred
         // over the content, which is how the window has always looked.
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
-            CommandGroup(replacing: .newItem) {}
+            // No documents to make, but there is one thing to open.
+            CommandGroup(replacing: .newItem) {
+                Button("Add Build…") { menu.addingBuild = true }
+                    .keyboardShortcut("o", modifiers: .command)
+            }
             CommandGroup(after: .toolbar) {
+                Button(menu.catalogueShown ? "Hide Catalogue" : "Show Catalogue") {
+                    menu.catalogueShown.toggle()
+                }
+                .keyboardShortcut("l", modifiers: [.command, .shift])
+
                 Button("Reload Catalogue") {
                     Task { await store.refreshAll() }
                 }
                 .keyboardShortcut("r", modifiers: .command)
-                .disabled(store.isFetching)
+                .disabled(menu.reloading)
+
+                // The app's one setting: how far back to scrape the stable
+                // archive. There is no settings window, and the menu bar is
+                // where a Mac app puts a setting with nowhere else to live —
+                // same reasoning as the library folder below it.
+                Picker("Oldest Version Listed", selection: Binding(
+                    get: { menu.minVersion },
+                    set: { menu.setMinVersion($0) }
+                )) {
+                    ForEach(minVersionOptions, id: \.self) { version in
+                        Text(version).tag(version)
+                    }
+                }
+
+                Divider()
 
                 // The library folder used to be reachable from the settings
                 // window. It is worth keeping a way in, and the menu bar is
@@ -75,6 +104,15 @@ struct VitrineApp: App {
                 }
             }
         }
+    }
+
+    /// The offered floors, plus whatever is currently set if a hand-edited
+    /// settings file named something off the list — the menu has to be able
+    /// to show the value it is bound to.
+    private var minVersionOptions: [String] {
+        var all = BuildStore.minVersionChoices
+        if !all.contains(menu.minVersion) { all.append(menu.minVersion) }
+        return all.sorted { (Version($0) ?? .zero) < (Version($1) ?? .zero) }
     }
 
     /// macOS 15+ ships Apple Intelligence's model-availability check wired
@@ -105,6 +143,10 @@ struct VitrineApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        // One window, and nothing sensible to put in a second tab of it —
+        // without this AppKit still offers "Show Tab Bar" and "Merge All
+        // Windows" in the View and Window menus.
+        NSWindow.allowsAutomaticWindowTabbing = false
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -162,15 +204,7 @@ final class FrameKeeper {
             // with a content view this flexible — SwiftUI sizes the window
             // from the content and lands on the minimum width — so the
             // opening size is set here instead, where it sticks.
-            //
-            // Width comes straight from the window's own `minSize`, which by
-            // this point already reflects what the library's rows measured
-            // themselves at (see `RowMinWidthKey`) — the window opens exactly
-            // as narrow as its content allows, no separate default to keep in
-            // sync with it. The old constant is only a floor, in case this
-            // runs before that first measurement has landed.
-            let width = max(window.minSize.width, Theme.Metrics.windowMinWidth)
-            window.setContentSize(NSSize(width: width,
+            window.setContentSize(NSSize(width: Theme.Metrics.windowMinWidth,
                                          height: Theme.Metrics.windowDefaultHeight))
             window.center()
         }

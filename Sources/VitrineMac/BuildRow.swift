@@ -1,28 +1,13 @@
 import SwiftUI
 import VitrineKit
 
-/// The narrowest a library row's content can ever be laid out without
-/// wrapping the date, truncating the version, or clipping the menu — reported
-/// by every `InstalledRow` and reduced to the widest one. The window's
-/// minimum width is built from this, so a row's content is what decides how
-/// far the window can shrink, not a guessed constant that drifts out of date
-/// the moment a version string or a date format changes shape.
-struct RowMinWidthKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
 /// A row for a build already in the library.
 struct InstalledRow: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
     let build: InstalledBuild
 
-    private var riskLabel: String? {
-        (build.branch == .stable && build.riskId == "stable") ? nil : build.riskLabel
-    }
+    @State private var confirmingUninstall = false
 
     var body: some View {
         content
@@ -32,81 +17,74 @@ struct InstalledRow: View {
             // lighting it up under the pointer promised something that never
             // happened — the buttons on it do their own hover instead.
             .background(RowCard())
-            .background(widthMeasurement)
             .contextMenu { rowActions }
+            .uninstallConfirmation(for: build, isPresented: $confirmingUninstall)
     }
 
-    // Eight points rather than ten: the menu's well is wider than the bare
-    // glyph it replaced, and at the window's minimum width the row has no
-    // slack to give it.
-    @ViewBuilder
     private var content: some View {
-        HStack(spacing: 8) {
-            PillButton(title: "Launch", tint: Theme.blenderBlue) {
+        HStack(spacing: Theme.Metrics.rowSpacing) {
+            PillButton(title: "Launch", tint: Theme.blenderBlue,
+                       help: "Open Blender \(build.version)") {
                 store.launch(build)
             }
-            .help("Open Blender \(build.version)")
 
             // LTS grouped right against the version it qualifies — the two
             // read as one identity, not a version followed by a separate
             // status chip.
             HStack(spacing: 4) {
+                // A build the user added by hand is named after whatever is
+                // on disk, so this is the one label on a row with no bound on
+                // its length. It truncates rather than pushing the row wider
+                // than the window; everything beside it is a short, fixed
+                // string or a fixed-size control.
                 Text(build.version)
                     .font(.system(size: 13, weight: .medium))
                     .monospacedDigit()
-                if store.isLTS(build.version) {
-                    Badge(text: "LTS", tint: nil, dark: true)
-                        .help("Long-term support — two years of bug-fix releases")
-                }
+                    .lineLimit(1)
+                if store.isLTS(build.version) { LTSBadge() }
             }
-            .fixedSize()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(store.isLTS(build.version)
+                                ? "Blender \(build.version), long-term support"
+                                : "Blender \(build.version)")
 
             if let target = store.updateAvailable(for: build) {
                 UpdateButton(build: build, target: target)
                     .transition(.scale.combined(with: .opacity))
             }
 
-            if let riskLabel {
-                Badge(text: riskLabel, tint: nil)
+            if let riskLabel = build.displayRiskLabel {
+                Badge(text: riskLabel)
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: Theme.Metrics.rowSpacing)
 
-            VStack(alignment: .trailing, spacing: 1) {
-                Text(DateFormat.day(build.installedAt))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                if let last = build.lastLaunchedAt {
-                    Text("Opened \(DateFormat.relative(last))")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .monospacedDigit()
-            // A date is a fixed, short string; wrapping it onto two lines to
-            // save four points is never the right trade.
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
+            dates
 
-            RowMenu { rowActions }
+            RowMenu(buildName: build.version) { rowActions }
         }
     }
 
-    /// An invisible copy of the row's content, laid out at its natural size
-    /// instead of whatever width the real row was squeezed into, so it
-    /// reports the true minimum rather than however far it already got
-    /// compressed this frame.
-    private var widthMeasurement: some View {
-        content
-            .padding(.horizontal, Theme.Metrics.rowInset)
-            .fixedSize(horizontal: true, vertical: false)
-            .hidden()
-            .background {
-                GeometryReader { geometry in
-                    Color.clear.preference(key: RowMinWidthKey.self, value: geometry.size.width)
-                }
+    private var dates: some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(DateFormat.day(build.installedAt))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            if let last = build.lastLaunchedAt {
+                Text("Opened \(DateFormat.relative(last))")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
             }
-            .accessibilityHidden(true)
+        }
+        .monospacedDigit()
+        // A date is a fixed, short string; wrapping it onto two lines to
+        // save four points is never the right trade.
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(build.lastLaunchedAt.map {
+            "Installed \(DateFormat.day(build.installedAt)), last opened \(DateFormat.relative($0))"
+        } ?? "Installed \(DateFormat.day(build.installedAt))")
     }
 
     @ViewBuilder
@@ -115,21 +93,57 @@ struct InstalledRow: View {
             withAnimation(.smooth(duration: 0.3)) { store.toggleStar(build) }
         }
         .help(build.pinned
-              ? "Unstar"
+              ? "Stop treating this build as the system Blender"
               : "Star — opens .blend files, and puts `blender` on your PATH")
         Button("Reveal in \(store.fileManagerName)") { store.reveal(build) }
         Divider()
         // A custom build is the user's own copy — Vitrine only forgets the
-        // reference, so don't call it "Uninstall".
-        Button(build.isCustom ? "Remove from Vitrine" : "Uninstall", role: .destructive) {
-            withAnimation(.smooth(duration: 0.25)) { store.uninstall(build) }
+        // reference, so don't call it "Uninstall", and don't ask before
+        // forgetting something that stays on disk either way.
+        if build.isCustom {
+            Button("Remove from Vitrine", role: .destructive) {
+                withAnimation(.smooth(duration: 0.25)) { store.uninstall(build) }
+            }
+        } else {
+            Button("Uninstall…", role: .destructive) { confirmingUninstall = true }
         }
     }
 }
 
-/// A row for a build in the remote catalogue. The version lives inside the
-/// download button rather than beside it — the button is what you aim at, and
-/// naming the version on it says exactly what the click will fetch.
+/// Deleting an installed build takes a gigabyte or two off the disk and
+/// nothing puts it back, so both ways in — the library row's menu and the
+/// catalogue's remove button — ask first. Custom builds never come here:
+/// forgetting a reference leaves the files exactly where they were.
+extension View {
+    func uninstallConfirmation(for build: InstalledBuild,
+                               isPresented: Binding<Bool>) -> some View {
+        modifier(UninstallConfirmation(build: build, isPresented: isPresented))
+    }
+}
+
+private struct UninstallConfirmation: ViewModifier {
+    @EnvironmentObject private var bridge: StoreBridge
+    let build: InstalledBuild
+    @Binding var isPresented: Bool
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(
+            "Uninstall Blender \(build.version)?",
+            isPresented: $isPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Uninstall", role: .destructive) {
+                withAnimation(.smooth(duration: 0.25)) { bridge.store.uninstall(build) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its folder is deleted from the library. Your Blender preferences and "
+                 + "add-ons are kept.")
+        }
+    }
+}
+
+/// A row for a build in the remote catalogue.
 struct RemoteRow: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
@@ -141,17 +155,12 @@ struct RemoteRow: View {
 
     @State private var hovered = false
 
-    private var state: DownloadState { store.downloadState(build.id) }
-    private var suppressRiskBadge: Bool { branch == .stable && build.riskId == "stable" }
-
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Theme.Metrics.rowSpacing) {
             CatalogueAction(build: build, branch: branch)
 
-            BadgeRow(
-                riskLabel: suppressRiskBadge ? nil : build.riskLabel,
-                isLTS: store.isLTS(build.version)
-            )
+            BadgeRow(riskLabel: build.riskLabel(under: branch),
+                     isLTS: store.isLTS(build.version))
 
             Spacer(minLength: 4)
 
@@ -163,7 +172,11 @@ struct RemoteRow: View {
         // different, lesser kind of row rather than simply more of the same.
         .frame(height: Theme.Metrics.rowHeight)
         .background {
-            if drawsCard { RowCard(hovered: hovered) }
+            if drawsCard {
+                RowCard(hovered: hovered)
+            } else {
+                RowHoverHighlight(hovered: hovered)
+            }
         }
         .onHover { hovered = $0 }
         .help(build.fileName)
@@ -171,7 +184,7 @@ struct RemoteRow: View {
 
     @ViewBuilder
     private var trailing: some View {
-        switch state {
+        switch store.downloadState(build.id) {
         case .downloading(let received, let total, let bps):
             let fraction = total > 0 ? min(1.0, Double(received) / Double(total)) : 0
             let etaSeconds = bps > 0 && total > received ? Double(total - received) / bps : -1
@@ -185,6 +198,9 @@ struct RemoteRow: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Downloading Blender \(build.version)")
+            .accessibilityValue("\(Int(fraction * 100)) percent")
             .transition(.opacity)
         case .failed(let message):
             Text(message)
@@ -201,13 +217,14 @@ struct RemoteRow: View {
                     .font(.system(size: 10))
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
+                    .accessibilityLabel("Download size \(ByteFormat.string(build.fileSize))")
             }
         }
     }
 }
 
 /// The leading control shared by catalogue rows and group headers: download,
-/// cancel, retry, or "Put Back" when the build is already installed.
+/// cancel, retry, or remove when the build is already installed.
 struct CatalogueAction: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
@@ -216,29 +233,31 @@ struct CatalogueAction: View {
     /// Defaults to the full version; a group header passes its series instead.
     var label: String? = nil
 
-    private let height = Theme.Metrics.actionHeight
-    private let iconSize: CGFloat = 17
+    @State private var confirmingUninstall = false
 
     /// The button plus the version beside it, laid out the same way as an
     /// installed row: a round action, then the version it acts on, instead
     /// of the version living inside the button's own label.
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Theme.Metrics.rowSpacing) {
             action
             Text(label ?? build.version)
                 .font(.system(size: 13, weight: .medium))
                 .monospacedDigit()
                 .fixedSize()
+                .accessibilityLabel("Blender \(label ?? build.version)")
         }
     }
 
     @ViewBuilder
     private var action: some View {
         if let installed = store.installedMatch(for: build) {
-            CircleIconButton(icon: .trash, tint: .red, diameter: height, iconSize: iconSize) {
-                withAnimation(.smooth(duration: 0.25)) { store.uninstall(installed) }
+            CircleIconButton(icon: .trash,
+                             label: "Remove Blender \(build.version) from the library",
+                             tint: .red) {
+                confirmingUninstall = true
             }
-            .help("Remove Blender \(build.version) from the library")
+            .uninstallConfirmation(for: installed, isPresented: $confirmingUninstall)
         } else {
             switch store.downloadState(build.id) {
             case .idle:
@@ -249,31 +268,31 @@ struct CatalogueAction: View {
                 // the plain download button regardless (`label` is only set
                 // on the header).
                 if label != nil, let outdated = store.installedInSameSeries(as: build) {
-                    CircleIconButton(icon: .update, tint: Theme.catalogueAccent,
-                                     diameter: height, iconSize: iconSize) {
+                    CircleIconButton(icon: .update,
+                                     label: "Update Blender \(outdated.version) to \(build.version)") {
                         withAnimation(.smooth(duration: 0.25)) {
                             store.updateInstall(from: outdated, to: build)
                         }
                     }
-                    .help("Update Blender \(outdated.version) to \(build.version)")
                 } else {
-                    CircleIconButton(icon: .download, tint: Theme.catalogueAccent,
-                                     diameter: height, iconSize: iconSize) {
+                    CircleIconButton(icon: .download,
+                                     label: "Download Blender \(build.version)") {
                         store.install(build, into: branch)
                     }
-                    .help("Download Blender \(build.version)")
                 }
             case .queued, .installing:
                 ProgressView()
                     .controlSize(.small)
-                    .frame(width: height, height: height)
+                    .frame(width: Theme.Metrics.actionHeight, height: Theme.Metrics.actionHeight)
+                    .accessibilityLabel("Installing Blender \(build.version)")
             case .downloading:
-                PillButton(title: "Stop", tint: .red, height: height) {
+                PillButton(title: "Stop", tint: .red,
+                           help: "Cancel the Blender \(build.version) download") {
                     store.cancelDownload(build)
                 }
-                .help("Cancel this download")
             case .failed:
-                PillButton(title: "Retry", tint: .orange, height: height) {
+                PillButton(title: "Retry", tint: .orange,
+                           help: "Try the Blender \(build.version) download again") {
                     store.install(build, into: branch)
                 }
             }
