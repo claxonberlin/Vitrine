@@ -2,16 +2,19 @@ import SwiftUI
 import VitrineKit
 
 /// The whole app in one window: the installed library fills it, and the
-/// catalogue slides in from the trailing edge as a second page.
+/// catalogue slides in from the trailing edge as a second page, the width
+/// of the window itself rather than a strip along its side.
 ///
 /// It isn't a real split — the window never resizes, and the library never
 /// gives up any of its own width — but it reads like one: opening the
 /// catalogue pushes the library most of the way out of its path rather than
 /// merely covering it, so the two feel like adjacent pages rather than a
-/// panel laid on top. `catalogueLibraryPush` is "most of the way" rather
-/// than the catalogue's full width, so the library's trailing edge still
-/// slips a little under the incoming page instead of the two just kissing
-/// edges — the same small overlap a real page transition leaves behind.
+/// panel laid on top. Both travel by exactly the same distance,
+/// `catalogueTravel` — 85% of the window's own current width, not the
+/// catalogue's, so at rest the library still shows a sliver of itself down
+/// the leading 15%, the same small overlap a real page transition leaves
+/// behind, and the catalogue is that same 85% wide rather than some
+/// separately-chosen sidebar width.
 ///
 /// Branches are not tabs. Both lists show every branch at once under a plain
 /// heading, so nothing is hidden behind a control you have to discover first.
@@ -31,18 +34,12 @@ struct ContentView: View {
     /// there is no selector to read one from.
     private static let customBuildBranch: BuildBranch = .stable
 
-    /// Far enough right to clear the page entirely — there's no margin or
-    /// shadow to clear any more, so this is exactly its own width.
-    private static var catalogueHiddenOffset: CGFloat {
-        Theme.Metrics.sidebarWidth
-    }
-
-    /// How far the library slides left while the catalogue is open: most of
-    /// the incoming page's width, not all of it, so the two overlap by a
-    /// sliver instead of sitting flush — see the type's own doc comment.
-    private static var catalogueLibraryPush: CGFloat {
-        Theme.Metrics.sidebarWidth * 0.85
-    }
+    /// How far the catalogue travels sliding in, how far the library
+    /// travels getting out of its way, and how wide the catalogue itself
+    /// is — all the same fraction of whatever the window measures itself
+    /// at, so the page keeps reading as "almost the whole window" at any
+    /// size instead of a fixed-width strip that a wide window would dwarf.
+    private static let catalogueTravelFraction: CGFloat = 0.85
 
     /// The window can never be narrower than the widest row actually needs —
     /// the row's own measured width plus the margin either side of it — with
@@ -53,28 +50,33 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            SplashBackground()
+        GeometryReader { geometry in
+            let travel = geometry.size.width * Self.catalogueTravelFraction
 
-            VStack(spacing: 0) {
-                ErrorBanner()
-                LibraryPane()
+            ZStack(alignment: .topTrailing) {
+                SplashBackground()
+
+                VStack(spacing: 0) {
+                    ErrorBanner()
+                    LibraryPane()
+                }
+                // Slides left to make room for the incoming page rather than
+                // staying put underneath it — see the type's own doc comment.
+                .offset(x: showingCatalogue ? -travel : 0)
+
+                // The page stays mounted and slides in and out on its
+                // offset. A conditional view with a `move` transition only
+                // animated the way in: SwiftUI tore the pane down on the way
+                // out before the slide could play, so hiding the catalogue
+                // snapped.
+                CataloguePane()
+                    .frame(width: travel)
+                    .frame(maxHeight: .infinity)
+                    .offset(x: showingCatalogue ? 0 : travel)
+                    .opacity(showingCatalogue ? 1 : 0)
+                    .allowsHitTesting(showingCatalogue)
+                    .accessibilityHidden(!showingCatalogue)
             }
-            // Slides left to make room for the incoming page rather than
-            // staying put underneath it — see the type's own doc comment.
-            .offset(x: showingCatalogue ? -Self.catalogueLibraryPush : 0)
-
-            // The page stays mounted and slides in and out on its offset.
-            // A conditional view with a `move` transition only animated the
-            // way in: SwiftUI tore the pane down on the way out before the
-            // slide could play, so hiding the catalogue snapped.
-            CataloguePane()
-                .frame(width: Theme.Metrics.sidebarWidth)
-                .frame(maxHeight: .infinity)
-                .offset(x: showingCatalogue ? 0 : Self.catalogueHiddenOffset)
-                .opacity(showingCatalogue ? 1 : 0)
-                .allowsHitTesting(showingCatalogue)
-                .accessibilityHidden(!showingCatalogue)
         }
         .frame(minWidth: windowMinWidth,
                minHeight: Theme.Metrics.windowMinHeight)
@@ -359,12 +361,6 @@ struct LibraryPane: View {
 /// tabs the app used to have.
 struct SectionHeader: View {
     let title: String
-    /// Matches the surface of the rows it heads: real glass in the library
-    /// on macOS 26 (nothing else translucent sits under it there), a flat
-    /// tint in the catalogue, which already sits on its own sheet of glass
-    /// and would go muddy under a second layer of it — the same split
-    /// `RowCard` makes.
-    var tinted: Bool = false
 
     var body: some View {
         Text(title.uppercased())
@@ -385,9 +381,7 @@ struct SectionHeader: View {
     @ViewBuilder
     private var fill: some View {
         let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
-        if tinted {
-            shape.fill(Theme.rowTint(hovered: false))
-        } else if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, *) {
             shape.fill(.clear).glassEffect(.regular, in: shape)
         } else {
             shape.fill(.regularMaterial)

@@ -55,20 +55,9 @@ enum Theme {
         static let windowDefaultWidth: CGFloat = windowMinWidth
         static let windowDefaultHeight: CGFloat = 560
 
-        /// The catalogue page: wide enough for a download button, a badge
-        /// and a file size on one line.
-        static let sidebarWidth: CGFloat = 264
-
         /// Every button in the app is a pill, so its radius is half its
         /// height and it stays fully round at any size.
         static func pill(_ height: CGFloat) -> CGFloat { height / 2 }
-    }
-
-    /// Card fill for a row sitting inside the catalogue pane, which is
-    /// already a sheet of material — a second sheet on top of it would go
-    /// muddy, so these rows tint rather than frost.
-    static func rowTint(hovered: Bool) -> Color {
-        Color.primary.opacity(hovered ? 0.13 : 0.07)
     }
 
     static let rowStroke = Color.primary.opacity(0.07)

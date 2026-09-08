@@ -4,12 +4,14 @@ import VitrineKit
 /// The remote catalogue, as a second page trailing the library rather than a
 /// panel laid on top of it.
 ///
-/// It shares the library's own height and glass vocabulary — no card, no
-/// corner radius, no shadow — and a hairline divider is all that separates
-/// the two, the way a split view would, even though this isn't one:
-/// `ContentView` slides it in from off the trailing edge and pushes the
-/// library most of the way out of its path rather than resizing anything,
-/// so opening it never changes the window's own width.
+/// It paints no background of its own — the same splash artwork behind the
+/// library shows straight through here too, with only each row's own glass
+/// standing between them, exactly like the library. A hairline divider on
+/// the leading edge is the only seam between the two, the way a split view
+/// would show one, even though this isn't one: `ContentView` slides this
+/// page in from off the trailing edge and pushes the library most of the
+/// way out of its path rather than resizing anything, so opening it never
+/// changes the window's own width.
 ///
 /// There's no title here any more — with the library pushed aside rather
 /// than merely covered, the toolbar's own title stands in for it (see
@@ -40,22 +42,6 @@ struct CataloguePane: View {
             .clipped()
     }
 
-    /// The pane's glass. A plain `Rectangle` is enough: `clipped()` on the
-    /// whole pane trims it to the window's own bounds, and there's no corner
-    /// radius left to cut. The list's own copy, rather than one shared
-    /// ancestor fill, is what lets `scrollEdgeEffectStyle` actually reach
-    /// it — a fill painted above the scroll view never dissolves with it, it
-    /// just sits there unaffected once the scrolled copy fades, which looks
-    /// like the glass failing rather than blurring.
-    @ViewBuilder
-    private var glassFill: some View {
-        if #available(macOS 26.0, *) {
-            Rectangle().fill(.clear).glassEffect(.regular, in: Rectangle())
-        } else {
-            Rectangle().fill(.ultraThinMaterial)
-        }
-    }
-
     // MARK: - List
 
     @ViewBuilder
@@ -68,7 +54,6 @@ struct CataloguePane: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(glassFill)
         } else if isEmpty {
             VStack(spacing: 6) {
                 Text("Nothing to show")
@@ -80,7 +65,6 @@ struct CataloguePane: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(glassFill)
         } else {
             list
         }
@@ -102,11 +86,8 @@ struct CataloguePane: View {
             .animation(.smooth(duration: 0.28), value: store.expandedMinorKeys)
         }
         .scrollContentBackground(.hidden)
-        .background(glassFill)
-        // The real, scroll-position-aware soft dissolve where rows pass
-        // under the pane's own header — reaches the glass right above,
-        // since it's this scroll view's own background rather than the
-        // pane's.
+        // The same soft dissolve the library uses as rows pass under the
+        // toolbar — see `LibraryPane`.
         .softScrollEdgeCompat(for: .top)
     }
 
@@ -114,7 +95,7 @@ struct CataloguePane: View {
     private func section(_ branch: BuildBranch) -> some View {
         let groups = store.remoteGrouped(in: branch)
         if !groups.isEmpty {
-            SectionHeader(title: branch.title, tinted: true)
+            SectionHeader(title: branch.title)
             ForEach(groups) { group in
                 if group.builds.count == 1 {
                     RemoteRow(build: group.builds[0], branch: branch)
@@ -149,8 +130,7 @@ struct GroupCard: View {
                 .transition(.opacity)
             }
         }
-        // Tinted: this card sits on the catalogue pane's own glass.
-        .background(RowCard(hovered: hovered, tinted: true))
+        .background(RowCard(hovered: hovered))
         .onHover { hovered = $0 }
     }
 

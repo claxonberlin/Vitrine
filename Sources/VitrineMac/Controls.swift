@@ -4,17 +4,13 @@ import VitrineKit
 /// The card behind a row. Lifts slightly under the pointer so a long list
 /// still tells you which row you are on.
 ///
-/// On macOS 26, library rows sit straight on the splash artwork and get
-/// real Liquid Glass — there's nothing else translucent under them to fight
-/// with. Catalogue rows sit on the sidepanel, which is itself real glass on
-/// 26 (see `CataloguePane`); glass on glass reads as fog rather than depth,
-/// so those tint flatly instead of getting a second glass layer of their
-/// own. Below macOS 26 neither surface is real glass, so both variants fall
-/// back to the same `ultraThinMaterial` this always used — `tinted` has no
-/// visible effect pre-26.
+/// Both the library and the catalogue sit straight on the splash artwork now
+/// — neither pane paints a background of its own — so every row everywhere
+/// gets real Liquid Glass on macOS 26, with nothing else translucent under
+/// it to fog into. Below macOS 26 there's no real glass to reach for, so it
+/// falls back to the same `ultraThinMaterial` this always used.
 struct RowCard: View {
     var hovered: Bool = false
-    var tinted: Bool = false
 
     var body: some View {
         shape
@@ -35,11 +31,7 @@ struct RowCard: View {
     private var shape: some View {
         let rect = RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
         if #available(macOS 26.0, *) {
-            if tinted {
-                rect.fill(Theme.rowTint(hovered: false))
-            } else {
-                rect.fill(.clear).glassEffect(.regular, in: rect)
-            }
+            rect.fill(.clear).glassEffect(.regular, in: rect)
         } else {
             rect.fill(.ultraThinMaterial)
         }

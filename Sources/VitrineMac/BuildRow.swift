@@ -150,8 +150,7 @@ struct RemoteRow: View {
         // different, lesser kind of row rather than simply more of the same.
         .frame(height: Theme.Metrics.rowHeight)
         .background {
-            // Tinted: this row sits on the catalogue pane's own glass.
-            if drawsCard { RowCard(hovered: hovered, tinted: true) }
+            if drawsCard { RowCard(hovered: hovered) }
         }
         .onHover { hovered = $0 }
         .help(build.fileName)
