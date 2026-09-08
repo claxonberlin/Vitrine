@@ -162,7 +162,15 @@ final class FrameKeeper {
             // with a content view this flexible — SwiftUI sizes the window
             // from the content and lands on the minimum width — so the
             // opening size is set here instead, where it sticks.
-            window.setContentSize(NSSize(width: Theme.Metrics.windowDefaultWidth,
+            //
+            // Width comes straight from the window's own `minSize`, which by
+            // this point already reflects what the library's rows measured
+            // themselves at (see `RowMinWidthKey`) — the window opens exactly
+            // as narrow as its content allows, no separate default to keep in
+            // sync with it. The old constant is only a floor, in case this
+            // runs before that first measurement has landed.
+            let width = max(window.minSize.width, Theme.Metrics.windowMinWidth)
+            window.setContentSize(NSSize(width: width,
                                          height: Theme.Metrics.windowDefaultHeight))
             window.center()
         }

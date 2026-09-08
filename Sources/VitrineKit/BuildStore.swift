@@ -245,6 +245,20 @@ public final class BuildStore {
         }
     }
 
+    /// An installed build sharing `remote`'s branch and X.Y minor series,
+    /// whether or not it's the exact version `remote` names — the catalogue's
+    /// group header uses this to offer bringing that build up to the series'
+    /// newest instead of installing the newest as a second, separate copy.
+    /// `installedMatch` already covers the exact-version case, so callers
+    /// should check that first.
+    public func installedInSameSeries(as remote: RemoteBuild) -> InstalledBuild? {
+        guard let remoteBranch = BuildBranch(rawValue: remote.branch),
+              let key = remote.parsedVersion.minorKey else { return nil }
+        return installed.first {
+            !$0.isCustom && $0.branch == remoteBranch && Version($0.version)?.minorKey == key
+        }
+    }
+
     public func isCurrentlyFetching(_ branch: BuildBranch) -> Bool {
         switch branch {
         case .stable: return fetchingStable

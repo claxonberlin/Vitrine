@@ -16,12 +16,9 @@ struct CataloguePane: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+                .background(glassFill)
             Divider().opacity(0.5)
             content
-        }
-        .background {
-            RoundedRectangle(cornerRadius: Theme.Metrics.sidebarCorner, style: .continuous)
-                .fill(.regularMaterial)
         }
         .overlay {
             RoundedRectangle(cornerRadius: Theme.Metrics.sidebarCorner, style: .continuous)
@@ -33,24 +30,44 @@ struct CataloguePane: View {
         .shadow(color: .black.opacity(0.28), radius: 18, y: 6)
     }
 
+    /// The pane's glass, applied separately to the header and to whatever's
+    /// below the divider rather than once behind the whole pane. The list's
+    /// own copy is what a scroll-edge effect can actually reach — a fill
+    /// painted on some ancestor of the scroll view never dissolves with it,
+    /// it just sits there unaffected once the scrolled copy fades, which
+    /// looks like the glass failing rather than blurring. A plain
+    /// `Rectangle` is enough either place: the outer `clipShape` on the
+    /// whole pane already trims everything to the rounded corners.
+    @ViewBuilder
+    private var glassFill: some View {
+        if #available(macOS 26.0, *) {
+            Rectangle().fill(.clear).glassEffect(.regular, in: Rectangle())
+        } else {
+            Rectangle().fill(.ultraThinMaterial)
+        }
+    }
+
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 6) {
+        // The title is centred over the whole header regardless of the
+        // spinner beside it — a trailing-aligned sibling in the same HStack
+        // would have pushed it off-centre only while fetching.
+        ZStack {
             Text("Catalogue")
                 .font(.system(size: 12, weight: .semibold))
+                .frame(maxWidth: .infinity, alignment: .center)
 
-            Spacer(minLength: 4)
-
-            if store.isFetching {
-                ProgressView()
-                    .controlSize(.small)
-                    .scaleEffect(0.7)
-                    .frame(width: 14, height: 14)
-                    .transition(.opacity)
+            HStack {
+                Spacer()
+                if store.isFetching {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
+                        .frame(width: 14, height: 14)
+                        .transition(.opacity)
+                }
             }
-
-            MinimumVersionMenu()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -68,6 +85,7 @@ struct CataloguePane: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(glassFill)
         } else if isEmpty {
             VStack(spacing: 6) {
                 Text("Nothing to show")
@@ -79,6 +97,7 @@ struct CataloguePane: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(glassFill)
         } else {
             list
         }
@@ -100,13 +119,19 @@ struct CataloguePane: View {
             .animation(.smooth(duration: 0.28), value: store.expandedMinorKeys)
         }
         .scrollContentBackground(.hidden)
+        .background(glassFill)
+        // The real, scroll-position-aware soft dissolve where rows pass
+        // under the pane's own header — reaches the glass right above,
+        // since it's this scroll view's own background rather than the
+        // pane's.
+        .softScrollEdgeCompat(for: .top)
     }
 
     @ViewBuilder
     private func section(_ branch: BuildBranch) -> some View {
         let groups = store.remoteGrouped(in: branch)
         if !groups.isEmpty {
-            SectionHeader(title: branch.title)
+            SectionHeader(title: branch.title, tinted: true)
             ForEach(groups) { group in
                 if group.builds.count == 1 {
                     RemoteRow(build: group.builds[0], branch: branch)
@@ -114,49 +139,6 @@ struct CataloguePane: View {
                     GroupCard(group: group, branch: branch)
                 }
             }
-        }
-    }
-}
-
-/// How far back the stable archive is scraped.
-///
-/// This is the only setting the app has, and it belongs to the catalogue —
-/// which is why it lives at the top of the catalogue rather than behind a
-/// window of its own.
-struct MinimumVersionMenu: View {
-    @EnvironmentObject private var bridge: StoreBridge
-    private var store: BuildStore { bridge.store }
-
-    /// The offered floors, plus whatever is currently set if a hand-edited
-    /// settings file named something off the list.
-    private var options: [String] {
-        var all = BuildStore.minVersionChoices
-        if !all.contains(store.minVersionString) {
-            all.append(store.minVersionString)
-        }
-        return all.sorted { (Version($0) ?? .zero) < (Version($1) ?? .zero) }
-    }
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Text("from")
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-
-            Picker("Oldest version to list", selection: Binding(
-                get: { store.minVersionString },
-                set: { store.setMinVersion($0) }
-            )) {
-                ForEach(options, id: \.self) { version in
-                    Text(version).monospacedDigit().tag(version)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .controlSize(.small)
-            .fixedSize()
-            .help("Hide every release older than this")
-            .handCursor()
         }
     }
 }
@@ -179,25 +161,29 @@ struct GroupCard: View {
             header
             if isExpanded {
                 ForEach(group.builds) { build in
-                    RemoteRow(build: build, branch: branch,
-                              compact: true, drawsCard: false)
+                    RemoteRow(build: build, branch: branch, drawsCard: false)
                 }
                 .transition(.opacity)
             }
         }
+        // Tinted: this card sits on the catalogue pane's own glass.
         .background(RowCard(hovered: hovered, tinted: true))
         .onHover { hovered = $0 }
     }
 
     private var header: some View {
         HStack(spacing: 8) {
+            // Dimmed once the group opens: every build inside now has its
+            // own download button, so the header's own action reads as a
+            // shortcut for the latest one rather than the row's main control.
             CatalogueAction(build: group.latest, branch: branch, label: group.minorKey)
+                .opacity(isExpanded ? 0.4 : 1)
+                .animation(.smooth(duration: 0.2), value: isExpanded)
 
             BadgeRow(
                 riskLabel: (branch == .stable && group.latest.riskId == "stable")
                     ? nil : group.latest.riskLabel,
-                isLTS: store.isLTS(group.latest.version),
-                accent: Theme.catalogueAccent
+                isLTS: store.isLTS(group.latest.version)
             )
 
             Spacer(minLength: 4)

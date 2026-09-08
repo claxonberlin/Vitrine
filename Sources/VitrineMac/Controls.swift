@@ -3,12 +3,17 @@ import VitrineKit
 
 /// The card behind a row. Lifts slightly under the pointer so a long list
 /// still tells you which row you are on.
+///
+/// On macOS 26, library rows sit straight on the splash artwork and get
+/// real Liquid Glass — there's nothing else translucent under them to fight
+/// with. Catalogue rows sit on the sidepanel, which is itself real glass on
+/// 26 (see `CataloguePane`); glass on glass reads as fog rather than depth,
+/// so those tint flatly instead of getting a second glass layer of their
+/// own. Below macOS 26 neither surface is real glass, so both variants fall
+/// back to the same `ultraThinMaterial` this always used — `tinted` has no
+/// visible effect pre-26.
 struct RowCard: View {
     var hovered: Bool = false
-    /// Rows in the library sit straight on the splash artwork and need to
-    /// frost it to stay readable. Rows in the catalogue pane are already on a
-    /// sheet of material, and a second sheet over the first goes muddy, so
-    /// they tint instead.
     var tinted: Bool = false
 
     var body: some View {
@@ -29,16 +34,100 @@ struct RowCard: View {
     @ViewBuilder
     private var shape: some View {
         let rect = RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
-        if tinted {
-            rect.fill(Theme.rowTint(hovered: false))
+        if #available(macOS 26.0, *) {
+            if tinted {
+                rect.fill(Theme.rowTint(hovered: false))
+            } else {
+                rect.fill(.clear).glassEffect(.regular, in: rect)
+            }
         } else {
-            rect.fill(.regularMaterial)
+            rect.fill(.ultraThinMaterial)
         }
+    }
+}
+
+/// The row's overflow menu: the same actions as the context menu, in a
+/// control you can see. Right-click is the macOS way to reach them; not
+/// everyone knows there is anything there to right-click.
+///
+/// It sits in a well sunk into the row rather than floating loose on it, so
+/// it reads as a control at rest instead of only on hover — which is what
+/// the library rows used to rely on.
+struct RowMenu<Actions: View>: View {
+    @ViewBuilder let actions: () -> Actions
+
+    @State private var hovered = false
+
+    // As tall as the Launch button beside it, so the two read as one row of
+    // controls at the same height rather than a large button and a small one.
+    private static var diameter: CGFloat { Theme.Metrics.actionHeight }
+
+    var body: some View {
+        Menu(content: actions) {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .foregroundStyle(.secondary)
+        .frame(width: Self.diameter, height: Self.diameter)
+        .background {
+            // Black rather than `primary`, which would lighten the well in
+            // dark mode instead of deepening it.
+            Circle().fill(Color.black.opacity(hovered ? 0.20 : 0.13))
+        }
+        .overlay {
+            Circle().strokeBorder(Color.white.opacity(hovered ? 0.10 : 0), lineWidth: 0.5)
+        }
+        .animation(.smooth(duration: 0.12), value: hovered)
+        .onHover { hovered = $0 }
+        .handCursor()
+        .help("More actions")
     }
 }
 
 /// Text-only action button. Hover brightens the fill, pressing sinks it.
 struct PillButton: View {
+    let title: String
+    let tint: Color
+    var height: CGFloat = Theme.Metrics.actionHeight
+    let action: () -> Void
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            // Real glass, filled with the action's own colour — the system
+            // picks a legible label colour for whatever tint it's given,
+            // which is the entire point of reaching for `.glassProminent`
+            // instead of hand-mixing a foreground colour ourselves.
+            //
+            // Sizing a glass button is measured, not declared: a `.frame`
+            // *outside* the button only proposes a box the button centres
+            // itself within — it does not make the visible glass that
+            // size — while a `.frame` on the label gets padded back out by
+            // the style's own chrome. `Theme.Metrics.glassPillPadding` is
+            // that padding, measured directly, so the label is sized to
+            // land on exactly `pillWidth`×`height` once the chrome is added
+            // back on top of it.
+            Button(action: action) {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: Theme.Metrics.pillWidth - Theme.Metrics.glassPillPadding.width,
+                           height: height - Theme.Metrics.glassPillPadding.height)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(tint)
+            .buttonBorderShape(.capsule)
+            .buttonSizing(.fitted)
+            .handCursor()
+        } else {
+            LegacyPillButton(title: title, tint: tint, height: height, action: action)
+        }
+    }
+}
+
+/// The pre-26 pill: a hand-filled capsule, since there's no real glass to
+/// reach for below macOS 26.
+private struct LegacyPillButton: View {
     let title: String
     let tint: Color
     var height: CGFloat = Theme.Metrics.actionHeight
@@ -55,39 +144,6 @@ struct PillButton: View {
         .buttonStyle(FilledPillStyle(tint: tint, height: height, hovered: hovered))
         .onHover { hovered = $0 }
         .handCursor()
-    }
-}
-
-/// The catalogue's primary action: download glyph on the leading edge, the
-/// version it will fetch on the trailing edge.
-struct DownloadButton: View {
-    /// What the button says — a series on a group header, the exact build on
-    /// an individual row.
-    let label: String
-    /// The build actually fetched, named in the tooltip.
-    let version: String
-    var height: CGFloat = Theme.Metrics.actionHeight
-    let action: () -> Void
-
-    @State private var hovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 3) {
-                IconView(icon: .download, size: 14)
-                Spacer(minLength: 0)
-                Text(label)
-                    .font(.system(size: 12, weight: .semibold))
-                    .monospacedDigit()
-            }
-            .padding(.horizontal, 9)
-            .frame(width: Theme.Metrics.actionWidth, height: height)
-        }
-        .buttonStyle(FilledPillStyle(tint: Theme.catalogueAccent,
-                                     height: height, hovered: hovered))
-        .onHover { hovered = $0 }
-        .handCursor()
-        .help("Download Blender \(version)")
     }
 }
 
@@ -115,6 +171,70 @@ private struct FilledPillStyle: ButtonStyle {
     }
 }
 
+/// A round, icon-only action button — the shape every "do this to the row"
+/// control uses now: Update, Download and Remove all read as the same kind
+/// of control at a glance, distinguished only by their icon and colour.
+struct CircleIconButton: View {
+    let icon: Icon
+    let tint: Color
+    var diameter: CGFloat = Theme.Metrics.actionHeight
+    var iconSize: CGFloat = 17
+    let action: () -> Void
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            // Sizing a glass button is measured, not declared — see the note
+            // on `PillButton`. `Theme.Metrics.glassCirclePadding` is the
+            // chrome's own padding, measured directly, so the icon is sized
+            // to land back on exactly `diameter` once that padding is added
+            // on top of it.
+            Button(action: action) {
+                IconView(icon: icon, size: iconSize)
+                    .frame(width: diameter - Theme.Metrics.glassCirclePadding,
+                           height: diameter - Theme.Metrics.glassCirclePadding)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(tint)
+            .buttonBorderShape(.circle)
+            .buttonSizing(.fitted)
+            .handCursor()
+        } else {
+            LegacyCircleIconButton(icon: icon, tint: tint, diameter: diameter,
+                                   iconSize: iconSize, action: action)
+        }
+    }
+}
+
+/// The pre-26 circle: a hand-filled disc, since there's no real glass to
+/// reach for below macOS 26.
+private struct LegacyCircleIconButton: View {
+    let icon: Icon
+    let tint: Color
+    var diameter: CGFloat = Theme.Metrics.actionHeight
+    var iconSize: CGFloat = 17
+    let action: () -> Void
+
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(tint.opacity(hovered ? 1.0 : 0.88))
+                .overlay {
+                    // White, same as every other icon on a filled circle in
+                    // the app — Update set the precedent, this just follows it.
+                    IconView(icon: icon, size: iconSize)
+                        .foregroundStyle(.white)
+                }
+                .frame(width: diameter, height: diameter)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .animation(.smooth(duration: 0.12), value: hovered)
+        .handCursor()
+    }
+}
+
 /// In-place update for an installed build. Swaps to a spinner while the
 /// replacement downloads.
 struct UpdateButton: View {
@@ -123,31 +243,18 @@ struct UpdateButton: View {
     let build: InstalledBuild
     let target: RemoteBuild
 
-    @State private var hovered = false
-
     var body: some View {
-        Group {
-            if store.isUpdating(build) {
-                ProgressView()
-                    .controlSize(.small)
-                    .scaleEffect(0.7)
-            } else {
-                Button {
-                    store.updateInstall(from: build, to: target)
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Theme.vitrineAccent)
-                        .scaleEffect(hovered ? 1.15 : 1.0)
-                }
-                .buttonStyle(.plain)
-                .onHover { hovered = $0 }
-                .animation(.smooth(duration: 0.12), value: hovered)
-                .help("Update to \(target.version) — keeps your preferences")
-                .handCursor()
+        if store.isUpdating(build) {
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.7)
+                .frame(width: Theme.Metrics.actionHeight, height: Theme.Metrics.actionHeight)
+        } else {
+            CircleIconButton(icon: .update, tint: Theme.catalogueAccent) {
+                store.updateInstall(from: build, to: target)
             }
+            .help("Update to \(target.version) — keeps your preferences")
         }
-        .frame(width: 20, height: 20)
     }
 }
 
@@ -156,19 +263,14 @@ struct StarButton: View {
     let starred: Bool
     let action: () -> Void
 
-    @State private var hovered = false
-
     var body: some View {
         Button(action: action) {
             Image(systemName: starred ? "star.fill" : "star")
                 .font(.system(size: 13))
                 .foregroundStyle(starred ? Color.yellow : Color.secondary)
-                .scaleEffect(hovered ? 1.15 : 1.0)
                 .frame(width: 20, height: 20)
         }
         .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-        .animation(.smooth(duration: 0.12), value: hovered)
         .help(starred
               ? "Unstar"
               : "Star — opens .blend files, and puts `blender` on your PATH")
@@ -179,7 +281,6 @@ struct StarButton: View {
 struct BadgeRow: View {
     let riskLabel: String?
     let isLTS: Bool
-    let accent: Color
 
     var body: some View {
         HStack(spacing: 4) {
@@ -187,7 +288,11 @@ struct BadgeRow: View {
                 Badge(text: riskLabel, tint: nil)
             }
             if isLTS {
-                Badge(text: "LTS", tint: accent)
+                // Fixed rather than tinted to the library's blue or the
+                // catalogue's orange — the same chip either place, so LTS
+                // reads as one consistent label rather than picking up
+                // whichever accent colour the row around it happens to use.
+                Badge(text: "LTS", tint: nil, dark: true)
                     .help("Long-term support — two years of bug-fix releases")
             }
         }
@@ -196,20 +301,31 @@ struct BadgeRow: View {
 
 struct Badge: View {
     let text: String
-    /// nil renders the neutral variant.
+    /// nil renders the neutral variant. Ignored when `dark` is set.
     let tint: Color?
+    /// Dark text on a medium-dark chip, fixed regardless of appearance or
+    /// accent — the LTS badge's own look, not derived from `tint`.
+    var dark: Bool = false
 
     var body: some View {
         Text(text)
             .font(.system(size: 9, weight: .semibold))
             .tracking(0.3)
-            .foregroundStyle(tint ?? Color.secondary)
+            .foregroundStyle(dark ? Color.black.opacity(0.75) : (tint ?? Color.secondary))
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .background {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(tint?.opacity(0.16) ?? Color.primary.opacity(0.08))
+                    .fill(fill)
             }
             .fixedSize()
+    }
+
+    private var fill: AnyShapeStyle {
+        if dark {
+            AnyShapeStyle(Color(white: 0.55))
+        } else {
+            AnyShapeStyle(tint?.opacity(0.16) ?? Color.primary.opacity(0.08))
+        }
     }
 }

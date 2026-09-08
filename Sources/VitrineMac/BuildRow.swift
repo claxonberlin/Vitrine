@@ -1,17 +1,44 @@
 import SwiftUI
 import VitrineKit
 
+/// The narrowest a library row's content can ever be laid out without
+/// wrapping the date, truncating the version, or clipping the menu — reported
+/// by every `InstalledRow` and reduced to the widest one. The window's
+/// minimum width is built from this, so a row's content is what decides how
+/// far the window can shrink, not a guessed constant that drifts out of date
+/// the moment a version string or a date format changes shape.
+struct RowMinWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 /// A row for a build already in the library.
 struct InstalledRow: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
     let build: InstalledBuild
 
-    @State private var hovered = false
-
     var body: some View {
-        HStack(spacing: 10) {
-            PillButton(title: "Launch", tint: build.pinned ? .yellow : .green) {
+        content
+            .padding(.horizontal, Theme.Metrics.rowInset)
+            .frame(height: Theme.Metrics.rowHeight)
+            // No hover fill. A library row isn't clickable as a row, so
+            // lighting it up under the pointer promised something that never
+            // happened — the buttons on it do their own hover instead.
+            .background(RowCard())
+            .background(widthMeasurement)
+            .contextMenu { rowActions }
+    }
+
+    // Eight points rather than ten: the menu's well is wider than the bare
+    // glyph it replaced, and at the window's minimum width the row has no
+    // slack to give it.
+    @ViewBuilder
+    private var content: some View {
+        HStack(spacing: 8) {
+            PillButton(title: "Launch", tint: Theme.blenderBlue) {
                 store.launch(build)
             }
             .help("Open Blender \(build.version)")
@@ -28,12 +55,12 @@ struct InstalledRow: View {
             Text(build.version)
                 .font(.system(size: 13, weight: .medium))
                 .monospacedDigit()
+                .fixedSize()
 
             BadgeRow(
                 riskLabel: (build.branch == .stable && build.riskId == "stable")
                     ? nil : build.riskLabel,
-                isLTS: store.isLTS(build.version),
-                accent: Theme.vitrineAccent
+                isLTS: store.isLTS(build.version)
             )
 
             Spacer(minLength: 8)
@@ -49,35 +76,35 @@ struct InstalledRow: View {
                 }
             }
             .monospacedDigit()
+            // A date is a fixed, short string; wrapping it onto two lines to
+            // save four points is never the right trade.
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
 
-            // The same actions as the context menu, in a control you can see.
-            // Right-click is the macOS way to reach them; not everyone knows
-            // there is anything there to right-click.
-            Menu {
-                rowActions
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .frame(width: 18)
-            .foregroundStyle(hovered ? .secondary : .tertiary)
-            .handCursor()
+            RowMenu { rowActions }
         }
-        .padding(.horizontal, Theme.Metrics.rowInset)
-        .frame(height: Theme.Metrics.rowHeight)
-        .background(RowCard(hovered: hovered))
-        .onHover { hovered = $0 }
-        .contextMenu { rowActions }
+    }
+
+    /// An invisible copy of the row's content, laid out at its natural size
+    /// instead of whatever width the real row was squeezed into, so it
+    /// reports the true minimum rather than however far it already got
+    /// compressed this frame.
+    private var widthMeasurement: some View {
+        content
+            .padding(.horizontal, Theme.Metrics.rowInset)
+            .fixedSize(horizontal: true, vertical: false)
+            .hidden()
+            .background {
+                GeometryReader { geometry in
+                    Color.clear.preference(key: RowMinWidthKey.self, value: geometry.size.width)
+                }
+            }
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
     private var rowActions: some View {
         Button("Reveal in \(store.fileManagerName)") { store.reveal(build) }
-        Button(build.pinned ? "Unstar" : "Star") {
-            withAnimation(.smooth(duration: 0.3)) { store.toggleStar(build) }
-        }
         Divider()
         // A custom build is the user's own copy — Vitrine only forgets the
         // reference, so don't call it "Uninstall".
@@ -95,7 +122,6 @@ struct RemoteRow: View {
     private var store: BuildStore { bridge.store }
     let build: RemoteBuild
     let branch: BuildBranch
-    var compact: Bool = false
     /// False inside an expanded group, which paints one continuous card behind
     /// the header and all of its children.
     var drawsCard: Bool = true
@@ -107,12 +133,11 @@ struct RemoteRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            CatalogueAction(build: build, branch: branch, compact: compact)
+            CatalogueAction(build: build, branch: branch)
 
             BadgeRow(
                 riskLabel: suppressRiskBadge ? nil : build.riskLabel,
-                isLTS: store.isLTS(build.version),
-                accent: Theme.catalogueAccent
+                isLTS: store.isLTS(build.version)
             )
 
             Spacer(minLength: 4)
@@ -120,8 +145,12 @@ struct RemoteRow: View {
             trailing
         }
         .padding(.horizontal, Theme.Metrics.rowInset)
-        .frame(height: compact ? Theme.Metrics.compactRowHeight : Theme.Metrics.rowHeight)
+        // Every row the same height as the group header above it — a build
+        // inside an expanded group used to render smaller, which read as a
+        // different, lesser kind of row rather than simply more of the same.
+        .frame(height: Theme.Metrics.rowHeight)
         .background {
+            // Tinted: this row sits on the catalogue pane's own glass.
             if drawsCard { RowCard(hovered: hovered, tinted: true) }
         }
         .onHover { hovered = $0 }
@@ -172,34 +201,60 @@ struct CatalogueAction: View {
     private var store: BuildStore { bridge.store }
     let build: RemoteBuild
     let branch: BuildBranch
-    var compact: Bool = false
     /// Defaults to the full version; a group header passes its series instead.
     var label: String? = nil
 
-    private var height: CGFloat {
-        compact ? Theme.Metrics.compactActionHeight : Theme.Metrics.actionHeight
+    private let height = Theme.Metrics.actionHeight
+    private let iconSize: CGFloat = 17
+
+    /// The button plus the version beside it, laid out the same way as an
+    /// installed row: a round action, then the version it acts on, instead
+    /// of the version living inside the button's own label.
+    var body: some View {
+        HStack(spacing: 8) {
+            action
+            Text(label ?? build.version)
+                .font(.system(size: 13, weight: .medium))
+                .monospacedDigit()
+                .fixedSize()
+        }
     }
 
-    var body: some View {
+    @ViewBuilder
+    private var action: some View {
         if let installed = store.installedMatch(for: build) {
-            PillButton(title: "Put Back", tint: .red, height: height) {
+            CircleIconButton(icon: .trash, tint: .red, diameter: height, iconSize: iconSize) {
                 withAnimation(.smooth(duration: 0.25)) { store.uninstall(installed) }
             }
             .help("Remove Blender \(build.version) from the library")
         } else {
             switch store.downloadState(build.id) {
             case .idle:
-                DownloadButton(
-                    label: label ?? build.version,
-                    version: build.version,
-                    height: height
-                ) {
-                    store.install(build, into: branch)
+                // A group header stands for its whole series. If an older
+                // patch of it is already installed, offer to bring that one
+                // forward instead of installing the newest as a second,
+                // separate copy — the individual rows inside the group keep
+                // the plain download button regardless (`label` is only set
+                // on the header).
+                if label != nil, let outdated = store.installedInSameSeries(as: build) {
+                    CircleIconButton(icon: .update, tint: Theme.catalogueAccent,
+                                     diameter: height, iconSize: iconSize) {
+                        withAnimation(.smooth(duration: 0.25)) {
+                            store.updateInstall(from: outdated, to: build)
+                        }
+                    }
+                    .help("Update Blender \(outdated.version) to \(build.version)")
+                } else {
+                    CircleIconButton(icon: .download, tint: Theme.catalogueAccent,
+                                     diameter: height, iconSize: iconSize) {
+                        store.install(build, into: branch)
+                    }
+                    .help("Download Blender \(build.version)")
                 }
             case .queued, .installing:
                 ProgressView()
                     .controlSize(.small)
-                    .frame(width: Theme.Metrics.actionWidth, height: height)
+                    .frame(width: height, height: height)
             case .downloading:
                 PillButton(title: "Stop", tint: .red, height: height) {
                     store.cancelDownload(build)

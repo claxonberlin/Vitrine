@@ -11,6 +11,9 @@ enum Theme {
     /// Blender's brand orange (#EA7600), so the catalogue reads as the other
     /// half of the app at a glance.
     static let catalogueAccent = Color(red: 0.918, green: 0.463, blue: 0.0)
+    /// The blue half of the Blender logo (#265787). Launch is the one button
+    /// that starts Blender itself, so it wears Blender's own colour.
+    static let blenderBlue = Color(red: 0.149, green: 0.341, blue: 0.529)
 
     enum Metrics {
         /// The spacing unit that sets the row rhythm: a row's action button
@@ -21,19 +24,35 @@ enum Theme {
         static let windowMargin: CGFloat = 12
 
         static let actionHeight: CGFloat = 32
-        static let compactActionHeight: CGFloat = 28
-        static let actionWidth: CGFloat = 84   // download button: icon + version
-        static let pillWidth: CGFloat = 78     // text-only actions (Launch, Put Back)
+        static let pillWidth: CGFloat = 78     // text-only actions (Launch, Put Back, Stop, Retry)
+
+        /// How much bigger a real Liquid Glass button renders than the
+        /// frame given to its own label — measured directly against a
+        /// running macOS 26 build, since neither the label's frame nor an
+        /// outer `.frame` around the whole button controls this: the label
+        /// gets padded back out by the glass chrome, and an outer frame is
+        /// only a layout box the button centres itself within, not a size
+        /// it actually takes on. `PillButton`/`CircleIconButton` size their
+        /// label down by exactly this much so the finished glass button
+        /// lands back on `pillWidth`/`actionHeight`.
+        static let glassPillPadding = CGSize(width: 24, height: 8)
+        static let glassCirclePadding: CGFloat = 8
 
         static var rowHeight: CGFloat { actionHeight + rowInset * 2 }
-        static var compactRowHeight: CGFloat { compactActionHeight + rowInset * 2 }
 
         static let corner: CGFloat = 12          // row / group cards
         static let iconSize: CGFloat = 16
 
+        /// A floor only: what a library row needs (see `RowMinWidthKey`)
+        /// almost always sets the real minimum higher than this. It only
+        /// governs an empty library, which has no row to measure.
         static let windowMinWidth: CGFloat = 380
         static let windowMinHeight: CGFloat = 430
-        static let windowDefaultWidth: CGFloat = 560
+        /// The width the Scene asks for before the window exists to measure
+        /// anything — `FrameKeeper` replaces it within the same launch with
+        /// whatever the content actually turned out to need, so this value
+        /// itself is never what the user sees.
+        static let windowDefaultWidth: CGFloat = windowMinWidth
         static let windowDefaultHeight: CGFloat = 560
 
         /// The floating catalogue pane: wide enough for a download button, a
