@@ -168,6 +168,12 @@ public struct RemoteBuild: Identifiable, Hashable, Codable, Sendable {
 
     public var id: String { url.absoluteString }
     public var riskLabel: String { riskId.capitalizedFirst }
+
+    /// The risk chip a front end should draw, or nil where it would only
+    /// repeat the heading above it: everything filed under Stable is stable.
+    public func riskLabel(under branch: BuildBranch) -> String? {
+        (branch == .stable && riskId == "stable") ? nil : riskLabel
+    }
 }
 
 public struct InstalledBuild: Identifiable, Hashable, Codable, Sendable {
@@ -200,6 +206,12 @@ public struct InstalledBuild: Identifiable, Hashable, Codable, Sendable {
     }
 
     public var riskLabel: String { riskId.capitalizedFirst }
+
+    /// The risk chip a front end should draw — nil under the Stable heading,
+    /// which already says as much. See `RemoteBuild.riskLabel(under:)`.
+    public var displayRiskLabel: String? {
+        (branch == .stable && riskId == "stable") ? nil : riskLabel
+    }
 
     /// Custom builds are tracked, not owned: never deleted from disk, never
     /// given metadata files, and persisted in the config store instead of

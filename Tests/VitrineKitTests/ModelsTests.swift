@@ -119,3 +119,37 @@ final class DownloadStateTests: XCTestCase {
         XCTAssertFalse(DownloadState.failed("boom").isActive)
     }
 }
+
+/// Which builds wear a risk chip is one rule, shared by both front ends and
+/// by both kinds of row, so it is pinned here rather than re-derived per view.
+final class RiskLabelTests: XCTestCase {
+    private func remote(version: String, riskId: String) -> RemoteBuild {
+        RemoteBuild(url: URL(string: "https://example.invalid/\(version)")!,
+                    version: version, parsedVersion: Version(version)!, riskId: riskId,
+                    branch: "stable", hash: nil, fileName: "blender-\(version).dmg",
+                    fileSize: 0, date: .distantPast, architecture: "arm64")
+    }
+
+    private func installed(version: String, riskId: String, branch: BuildBranch) -> InstalledBuild {
+        InstalledBuild(id: UUID(), version: version, riskId: riskId, branch: branch,
+                       installedAt: .distantPast, lastLaunchedAt: nil, sourceURL: nil,
+                       buildPath: URL(fileURLWithPath: "/tmp/Blender.app"), pinned: false)
+    }
+
+    func testStableUnderStableSaysNothingTwice() {
+        XCTAssertNil(remote(version: "4.2.1", riskId: "stable").riskLabel(under: .stable))
+        XCTAssertNil(installed(version: "4.2.1", riskId: "stable", branch: .stable)
+            .displayRiskLabel)
+    }
+
+    func testAnythingElseKeepsItsChip() {
+        XCTAssertEqual(remote(version: "5.3.0", riskId: "alpha").riskLabel(under: .daily), "Alpha")
+        // A stable-flagged build filed under another heading still says so.
+        XCTAssertEqual(remote(version: "4.2.1", riskId: "stable").riskLabel(under: .daily), "Stable")
+        XCTAssertEqual(installed(version: "5.3.0", riskId: "alpha", branch: .daily)
+            .displayRiskLabel, "Alpha")
+        // Builds the user added by hand are marked wherever they are filed.
+        XCTAssertEqual(installed(version: "4.0", riskId: InstalledBuild.customRiskID,
+                                 branch: .stable).displayRiskLabel, "Custom")
+    }
+}

@@ -18,9 +18,9 @@ public final class BuildStore {
 
     // MARK: - Remote catalogue
 
-    public private(set) var stable: [RemoteBuild] = [] { didSet { notify() } }
-    public private(set) var daily: [RemoteBuild] = [] { didSet { notify() } }
-    public private(set) var experimental: [RemoteBuild] = [] { didSet { notify() } }
+    public private(set) var stable: [RemoteBuild] = [] { didSet { republish() } }
+    public private(set) var daily: [RemoteBuild] = [] { didSet { republish() } }
+    public private(set) var experimental: [RemoteBuild] = [] { didSet { republish() } }
 
     public private(set) var fetchingStable = false { didSet { notify() } }
     public private(set) var fetchingDaily = false { didSet { notify() } }
@@ -32,7 +32,7 @@ public final class BuildStore {
 
     // MARK: - Local library
 
-    public private(set) var installed: [InstalledBuild] = [] { didSet { notify() } }
+    public private(set) var installed: [InstalledBuild] = [] { didSet { republish() } }
 
     public private(set) var downloads: [String: DownloadState] = [:] { didSet { notify() } }
 
@@ -56,18 +56,33 @@ public final class BuildStore {
     // MARK: - Settings
 
     public private(set) var libraryPath: String { didSet { notify() } }
-    public private(set) var minVersionString: String { didSet { notify() } }
+    public private(set) var minVersionString: String { didSet { republish() } }
 
     // MARK: - Internals
 
     private let platform = Platform.current
-    private let config = ConfigStore()
+    private let config: ConfigStore
     private var settings: VitrineSettings
     private let downloadManager = DownloadManager()
     private let splashLibrary = SplashLibrary()
     private var downloadTasks: [String: Task<Void, Never>] = [:]
     /// Front ends subscribed through `observeChanges`. See StoreObservation.
     var observers: [Observer] = []
+
+    /// `remoteGrouped(in:)` and `installed(in:)` are pure functions of the
+    /// stored lists, and both front ends call them once per branch on every
+    /// render — while a download is running that is ten times a second, for
+    /// work that only changes when a fetch lands. Computed once per change
+    /// instead, and dropped by `republish()` when their inputs move.
+    private var groupedRemote: [BuildBranch: [RemoteBuildGroup]] = [:]
+    private var installedByBranch: [BuildBranch: [InstalledBuild]] = [:]
+
+    /// The `didSet` for a property the derived lists are built from.
+    private func republish() {
+        groupedRemote.removeAll(keepingCapacity: true)
+        installedByBranch.removeAll(keepingCapacity: true)
+        notify()
+    }
 
     /// Rebuilt per access so a library-path change takes effect immediately;
     /// Installer holds no state beyond its roots.
@@ -84,8 +99,12 @@ public final class BuildStore {
     public var buildIsDirectory: Bool { platform.buildIsDirectory }
 
     public init() {
+        // Built here rather than as a property initialiser: `self` isn't
+        // usable until every stored property has a value, and loading the
+        // settings is what supplies most of them.
         let config = ConfigStore()
         let loaded = config.load()
+        self.config = config
         self.settings = loaded
         self.libraryPath = loaded.libraryPath ?? Platform.current.defaultLibraryRoot.path
         self.minVersionString = loaded.minVersion
@@ -103,6 +122,7 @@ public final class BuildStore {
     // MARK: - Refresh
 
     public func refreshAll() async {
+        guard !isFetching else { return }
         async let l: Void = refreshLTS()
         async let s: Void = refreshStable()
         async let d: Void = refreshDaily()
@@ -177,8 +197,11 @@ public final class BuildStore {
 
     public func isLTS(_ version: String) -> Bool { ltsBranches.contains(version: version) }
 
+    /// The branch's builds, starred first, then newest version, then newest
+    /// install.
     public func installed(in branch: BuildBranch) -> [InstalledBuild] {
-        installed
+        if let cached = installedByBranch[branch] { return cached }
+        let items = installed
             .filter { $0.branch == branch }
             .sorted { lhs, rhs in
                 if lhs.pinned != rhs.pinned { return lhs.pinned }
@@ -187,9 +210,11 @@ public final class BuildStore {
                 if lv != rv { return lv > rv }
                 return lhs.installedAt > rhs.installedAt
             }
+        installedByBranch[branch] = items
+        return items
     }
 
-    public func remote(in branch: BuildBranch) -> [RemoteBuild] {
+    private func remote(in branch: BuildBranch) -> [RemoteBuild] {
         let raw: [RemoteBuild]
         switch branch {
         case .stable: raw = stable
@@ -204,6 +229,19 @@ public final class BuildStore {
     /// keyed by their raw version string. Groups are returned newest minor
     /// first; within a group, builds are sorted newest version first.
     public func remoteGrouped(in branch: BuildBranch) -> [RemoteBuildGroup] {
+        if let cached = groupedRemote[branch] { return cached }
+        let groups = groupRemote(in: branch)
+        groupedRemote[branch] = groups
+        return groups
+    }
+
+    /// True when no branch has anything to list — the catalogue's own empty
+    /// state, asked once rather than re-grouping all three branches to find out.
+    public var catalogueIsEmpty: Bool {
+        BuildBranch.allCases.allSatisfy { remoteGrouped(in: $0).isEmpty }
+    }
+
+    private func groupRemote(in branch: BuildBranch) -> [RemoteBuildGroup] {
         var buckets: [String: [RemoteBuild]] = [:]
         var order: [String] = []
         for b in remote(in: branch) {
@@ -259,14 +297,6 @@ public final class BuildStore {
         }
     }
 
-    public func isCurrentlyFetching(_ branch: BuildBranch) -> Bool {
-        switch branch {
-        case .stable: return fetchingStable
-        case .daily: return fetchingDaily
-        case .experimental: return fetchingExperimental
-        }
-    }
-
     public func downloadState(_ id: String) -> DownloadState { downloads[id] ?? .idle }
 
     // MARK: - Install / cancel / launch
@@ -300,8 +330,16 @@ public final class BuildStore {
                 }
                 self.installed.append(new)
                 if let old {
-                    try? self.installer.uninstall(old)
-                    self.installed.removeAll { $0.id == old.id }
+                    // The new build is in place either way. If the old one
+                    // can't be removed it stays listed, because it is still
+                    // on disk — see `uninstall(_:)`.
+                    do {
+                        try self.installer.uninstall(old)
+                        self.installed.removeAll { $0.id == old.id }
+                    } catch {
+                        self.lastError = "Installed \(target.version), but could not remove "
+                            + "\(old.version): \(error.localizedDescription)"
+                    }
                 }
                 self.finishInstall(of: target, replacing: old)
                 if old?.pinned == true {
@@ -367,11 +405,23 @@ public final class BuildStore {
     /// Uninstalling a library build deletes its folder. A custom build — one
     /// the user already had on disk — is only forgotten; the files themselves
     /// are never touched.
+    ///
+    /// A delete that is refused leaves the build where it is and says so. The
+    /// library folder defaults to `/Applications/Vitrine`, and macOS gates
+    /// removing an app bundle there behind App Management, so this is a
+    /// permission the user can actually be missing — dropping the row anyway
+    /// would strand a gigabyte or two with nothing tracking it.
     public func uninstall(_ build: InstalledBuild) {
-        let removingStarred = build.pinned
         if !build.isCustom {
-            try? installer.uninstall(build)
+            do {
+                try installer.uninstall(build)
+            } catch {
+                lastError = "Could not uninstall Blender \(build.version): "
+                    + error.localizedDescription
+                return
+            }
         }
+        let removingStarred = build.pinned
         installed.removeAll { $0.id == build.id }
         if build.isCustom { persistCustomBuilds() }
         if removingStarred {
