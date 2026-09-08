@@ -10,7 +10,7 @@ import VitrineKit
 /// like a button, but a row card is wide enough to span both a bright and a
 /// shadowed patch of the splash artwork in one shot — the same card comes
 /// out looking like two different materials stitched together rather than
-/// one continuous surface. `ultraThinMaterial` doesn't adapt to what's
+/// one continuous surface. `thinMaterial` doesn't adapt to what's
 /// behind it at all, so every row reads as the same frosted sheet no matter
 /// how busy the artwork gets there, on every macOS version.
 struct RowCard: View {
@@ -18,7 +18,7 @@ struct RowCard: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
-            .fill(.ultraThinMaterial)
+            .fill(.thinMaterial)
             .overlay {
                 if hovered {
                     RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
@@ -245,26 +245,6 @@ struct UpdateButton: View {
     }
 }
 
-/// Single-star toggle. The starred build is the one wired into the desktop.
-struct StarButton: View {
-    let starred: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: starred ? "star.fill" : "star")
-                .font(.system(size: 13))
-                .foregroundStyle(starred ? Color.yellow : Color.secondary)
-                .frame(width: 20, height: 20)
-        }
-        .buttonStyle(.plain)
-        .help(starred
-              ? "Unstar"
-              : "Star — opens .blend files, and puts `blender` on your PATH")
-        .handCursor()
-    }
-}
-
 struct BadgeRow: View {
     let riskLabel: String?
     let isLTS: Bool
@@ -290,15 +270,17 @@ struct Badge: View {
     let text: String
     /// nil renders the neutral variant. Ignored when `dark` is set.
     let tint: Color?
-    /// Dark text on a medium-dark chip, fixed regardless of appearance or
-    /// accent — the LTS badge's own look, not derived from `tint`.
+    /// The same sunken well `RowMenu`'s "···" button sits in, fixed
+    /// regardless of appearance or accent — the LTS badge's own look, not
+    /// derived from `tint`, so it reads as the same kind of chrome as the
+    /// row's other fixed control rather than a coloured status label.
     var dark: Bool = false
 
     var body: some View {
         Text(text)
             .font(.system(size: 9, weight: .semibold))
             .tracking(0.3)
-            .foregroundStyle(dark ? Color.black.opacity(0.75) : (tint ?? Color.secondary))
+            .foregroundStyle(dark ? Color.secondary : (tint ?? Color.secondary))
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .background {
@@ -310,7 +292,10 @@ struct Badge: View {
 
     private var fill: AnyShapeStyle {
         if dark {
-            AnyShapeStyle(Color(white: 0.55))
+            // Black rather than `primary`, which would lighten the well in
+            // dark mode instead of deepening it — same reasoning as
+            // `RowMenu`'s own well.
+            AnyShapeStyle(Color.black.opacity(0.13))
         } else {
             AnyShapeStyle(tint?.opacity(0.16) ?? Color.primary.opacity(0.08))
         }

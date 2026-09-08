@@ -20,6 +20,10 @@ struct InstalledRow: View {
     private var store: BuildStore { bridge.store }
     let build: InstalledBuild
 
+    private var riskLabel: String? {
+        (build.branch == .stable && build.riskId == "stable") ? nil : build.riskLabel
+    }
+
     var body: some View {
         content
             .padding(.horizontal, Theme.Metrics.rowInset)
@@ -43,25 +47,28 @@ struct InstalledRow: View {
             }
             .help("Open Blender \(build.version)")
 
-            Text(build.version)
-                .font(.system(size: 13, weight: .medium))
-                .monospacedDigit()
-                .fixedSize()
+            // LTS grouped right against the version it qualifies — the two
+            // read as one identity, not a version followed by a separate
+            // status chip.
+            HStack(spacing: 4) {
+                Text(build.version)
+                    .font(.system(size: 13, weight: .medium))
+                    .monospacedDigit()
+                if store.isLTS(build.version) {
+                    Badge(text: "LTS", tint: nil, dark: true)
+                        .help("Long-term support — two years of bug-fix releases")
+                }
+            }
+            .fixedSize()
 
             if let target = store.updateAvailable(for: build) {
                 UpdateButton(build: build, target: target)
                     .transition(.scale.combined(with: .opacity))
             }
 
-            StarButton(starred: build.pinned) {
-                withAnimation(.smooth(duration: 0.3)) { store.toggleStar(build) }
+            if let riskLabel {
+                Badge(text: riskLabel, tint: nil)
             }
-
-            BadgeRow(
-                riskLabel: (build.branch == .stable && build.riskId == "stable")
-                    ? nil : build.riskLabel,
-                isLTS: store.isLTS(build.version)
-            )
 
             Spacer(minLength: 8)
 
@@ -104,6 +111,12 @@ struct InstalledRow: View {
 
     @ViewBuilder
     private var rowActions: some View {
+        Button(build.pinned ? "Unstar" : "Star") {
+            withAnimation(.smooth(duration: 0.3)) { store.toggleStar(build) }
+        }
+        .help(build.pinned
+              ? "Unstar"
+              : "Star — opens .blend files, and puts `blender` on your PATH")
         Button("Reveal in \(store.fileManagerName)") { store.reveal(build) }
         Divider()
         // A custom build is the user's own copy — Vitrine only forgets the

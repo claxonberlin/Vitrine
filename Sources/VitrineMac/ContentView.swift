@@ -378,14 +378,12 @@ struct SectionHeader: View {
             .padding(.bottom, 2)
     }
 
-    @ViewBuilder
+    // Same call as `RowCard`: real glass adapts its tint to whatever's
+    // directly behind it, which reads as inconsistent rather than crisp for
+    // a small badge sitting over the same busy artwork a wide row does.
+    // `thinMaterial` stays one consistent surface regardless.
     private var fill: some View {
-        let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
-        if #available(macOS 26.0, *) {
-            shape.fill(.clear).glassEffect(.regular, in: shape)
-        } else {
-            shape.fill(.regularMaterial)
-        }
+        RoundedRectangle(cornerRadius: 5, style: .continuous).fill(.thinMaterial)
     }
 }
 
