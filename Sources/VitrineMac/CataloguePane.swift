@@ -80,8 +80,11 @@ struct CataloguePane: View {
                     section(branch)
                 }
             }
-            .padding(.horizontal, Theme.Metrics.rowInset)
-            .padding(.bottom, Theme.Metrics.rowInset)
+            // Same margin as the library's own rows keep from the window
+            // edge — this page reads as a continuation of it, not a
+            // narrower column floating inside it.
+            .padding(.horizontal, Theme.Metrics.windowMargin)
+            .padding(.bottom, Theme.Metrics.windowMargin)
             .animation(.smooth(duration: 0.28), value: store.expandedMinorKeys)
         }
         .scrollContentBackground(.hidden)

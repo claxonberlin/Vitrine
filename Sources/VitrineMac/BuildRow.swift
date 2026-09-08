@@ -43,6 +43,11 @@ struct InstalledRow: View {
             }
             .help("Open Blender \(build.version)")
 
+            Text(build.version)
+                .font(.system(size: 13, weight: .medium))
+                .monospacedDigit()
+                .fixedSize()
+
             if let target = store.updateAvailable(for: build) {
                 UpdateButton(build: build, target: target)
                     .transition(.scale.combined(with: .opacity))
@@ -51,11 +56,6 @@ struct InstalledRow: View {
             StarButton(starred: build.pinned) {
                 withAnimation(.smooth(duration: 0.3)) { store.toggleStar(build) }
             }
-
-            Text(build.version)
-                .font(.system(size: 13, weight: .medium))
-                .monospacedDigit()
-                .fixedSize()
 
             BadgeRow(
                 riskLabel: (build.branch == .stable && build.riskId == "stable")
