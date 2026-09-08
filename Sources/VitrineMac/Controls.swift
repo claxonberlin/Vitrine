@@ -4,16 +4,21 @@ import VitrineKit
 /// The card behind a row. Lifts slightly under the pointer so a long list
 /// still tells you which row you are on.
 ///
-/// Both the library and the catalogue sit straight on the splash artwork now
-/// — neither pane paints a background of its own — so every row everywhere
-/// gets real Liquid Glass on macOS 26, with nothing else translucent under
-/// it to fog into. Below macOS 26 there's no real glass to reach for, so it
-/// falls back to the same `ultraThinMaterial` this always used.
+/// Real Liquid Glass was tried here and dropped again: `.glassEffect()`
+/// samples the content directly behind each glass shape and adapts its own
+/// tint to it, which is the point of the material for something compact
+/// like a button, but a row card is wide enough to span both a bright and a
+/// shadowed patch of the splash artwork in one shot — the same card comes
+/// out looking like two different materials stitched together rather than
+/// one continuous surface. `ultraThinMaterial` doesn't adapt to what's
+/// behind it at all, so every row reads as the same frosted sheet no matter
+/// how busy the artwork gets there, on every macOS version.
 struct RowCard: View {
     var hovered: Bool = false
 
     var body: some View {
-        shape
+        RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
+            .fill(.ultraThinMaterial)
             .overlay {
                 if hovered {
                     RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
@@ -25,16 +30,6 @@ struct RowCard: View {
                     .strokeBorder(Theme.rowStroke, lineWidth: 0.5)
             }
             .animation(.smooth(duration: 0.15), value: hovered)
-    }
-
-    @ViewBuilder
-    private var shape: some View {
-        let rect = RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
-        if #available(macOS 26.0, *) {
-            rect.fill(.clear).glassEffect(.regular, in: rect)
-        } else {
-            rect.fill(.ultraThinMaterial)
-        }
     }
 }
 
