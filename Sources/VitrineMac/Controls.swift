@@ -171,6 +171,7 @@ struct PillButton: View {
             }
             .buttonStyle(.glassProminent)
             .tint(tint)
+            .controlSize(.regular)
             .buttonBorderShape(.capsule)
             .buttonSizing(.fitted)
             // Prominent glass barely moves under the pointer on its own —
@@ -247,7 +248,18 @@ struct CircleIconButton: View {
             // chrome's own padding, measured directly, so the icon is sized
             // to land back on exactly `diameter` once that padding is added
             // on top of it.
+            //
+            // `.controlSize(.regular)` is what makes that padding a constant
+            // rather than a guess. A toolbar hands its items a larger control
+            // size than window content uses, and the glass chrome scales with
+            // it: the same button that pads its label by 8pt in the catalogue
+            // pads it by 20pt in the title bar. Without this the toolbar's
+            // buttons came out 40pt from a `diameter` of 28 — bigger than the
+            // 32pt controls on a row they are meant to sit below. Measured
+            // both ways, and confirmed by driving `diameter` to 60 and
+            // watching the toolbar render 72.
             glass
+                .controlSize(.regular)
                 .buttonBorderShape(.circle)
                 .buttonSizing(.fitted)
                 .animation(.smooth(duration: 0.12), value: filled)

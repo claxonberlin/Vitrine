@@ -109,6 +109,12 @@ enum Theme {
         /// it actually takes on. `PillButton`/`CircleIconButton` size their
         /// label down by exactly this much so the finished glass button
         /// lands back on `pillWidth`/`actionHeight`.
+        ///
+        /// Only true at `.controlSize(.regular)`, which is why both of those
+        /// set it explicitly. The chrome scales with the control size, and a
+        /// toolbar hands its items a larger one than window content uses —
+        /// the circle's padding goes from 8pt to 20pt in the title bar. Left
+        /// to the ambient value, one constant means two different sizes.
         static let glassPillPadding = CGSize(width: 24, height: 8)
         static let glassCirclePadding: CGFloat = 8
 
