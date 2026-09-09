@@ -132,14 +132,25 @@ enum Theme {
 
         static var rowHeight: CGFloat { actionHeight + rowInset * 2 }
 
-        /// Library rows stand 60% larger than a catalogue row, so each has the
-        /// room to carry its release's splash painting as its background. Every
-        /// other measure of a library row — its inner margin, its corner
-        /// radius, the gap to the next row — scales by the same factor so the
-        /// bigger card keeps the catalogue's proportions rather than looking
-        /// like a catalogue row with its content floating in slack space.
+        /// A library card is built around its Launch button: the pill is the
+        /// tallest thing in the row and the one the card exists to carry, so
+        /// the row is that pill plus an even margin above and below it.
+        ///
+        /// Deliberately not derived from a catalogue row. It used to be, and
+        /// that made every library card change height whenever a catalogue
+        /// button did — the two lists share a vocabulary, not a size, and
+        /// nothing about a download button should reach the splash artwork.
+        static let libraryRowPadding: CGFloat = 12
+        static var libraryRowHeight: CGFloat {
+            launchButtonSize.height + libraryRowPadding * 2
+        }
+
+        /// A library card keeps a catalogue row's *proportions* at 1.6× the
+        /// size — its inner margin, its corner radius, the gap to the next
+        /// row — so the bigger card reads as the same kind of object rather
+        /// than a catalogue row with its content floating in slack space.
+        /// Its height is not one of them; see `libraryRowHeight` above.
         static let libraryRowScale: CGFloat = 1.6
-        static var libraryRowHeight: CGFloat { rowHeight * libraryRowScale }
         static var libraryRowInset: CGFloat { rowInset * libraryRowScale }
         static var libraryRowSpacing: CGFloat { rowSpacing * libraryRowScale }
         static var libraryCorner: CGFloat { corner * libraryRowScale }
