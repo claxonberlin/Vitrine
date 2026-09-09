@@ -177,8 +177,8 @@ private struct ToolbarIconButton: View {
     var toggledOn: Bool? = nil
     let action: () -> Void
 
-    private static let diameter: CGFloat = 28
-    private static let iconSize: CGFloat = 18
+    private static let diameter = Theme.Metrics.iconButtonSize
+    private static let iconSize = Theme.Metrics.iconButtonIcon
 
     var body: some View {
         CircleIconButton(icon: icon, label: label, filled: toggledOn == true,

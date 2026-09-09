@@ -84,7 +84,7 @@ struct RowMenu<Actions: View>: View {
 
     // The same diameter as the row's Update button, so the round controls
     // read as one set.
-    private static var diameter: CGFloat { Theme.Metrics.actionHeight }
+    private static var diameter: CGFloat { Theme.Metrics.iconButtonSize }
 
     var body: some View {
         core
@@ -121,11 +121,13 @@ struct RowMenu<Actions: View>: View {
     }
 
     private var glyph: some View {
-        Image(systemName: "ellipsis")
-            .font(.system(size: 11, weight: .semibold))
+        // The bundled line icon rather than SF Symbols' `ellipsis`, so the
+        // dots are drawn from the same set as every other icon in the window
+        // and carry that set's weight instead of the system font's.
+        IconView(icon: .more, size: Theme.Metrics.iconButtonIcon)
             // On the glyph rather than on the Menu: a menu button takes its
-            // name from its own label, and the symbol's built-in one
-            // ("More", localised) says nothing about which row it opens.
+            // name from its own label, and a drawn icon has no name of its
+            // own to say which row it opens.
             .accessibilityLabel(Self.label(for: buildName))
     }
 
@@ -338,16 +340,18 @@ struct UpdateButton: View {
             ProgressView()
                 .controlSize(.small)
                 .scaleEffect(0.7)
-                .frame(width: Theme.Metrics.actionHeight, height: Theme.Metrics.actionHeight)
+                .frame(width: Theme.Metrics.iconButtonSize,
+                       height: Theme.Metrics.iconButtonSize)
                 .accessibilityLabel("Updating Blender \(build.version) to \(target.version)")
         } else {
             let label = "Update Blender \(build.version) to \(target.version)"
             Button {
                 store.updateInstall(from: build, to: target)
             } label: {
-                IconView(icon: .update, size: 17)
+                IconView(icon: .update, size: Theme.Metrics.iconButtonIcon)
                     .foregroundStyle(.white)
-                    .frame(width: Theme.Metrics.actionHeight, height: Theme.Metrics.actionHeight)
+                    .frame(width: Theme.Metrics.iconButtonSize,
+                           height: Theme.Metrics.iconButtonSize)
             }
             // Carries the hover highlight, and sets the hit region to the
             // whole disc: a `.plain` button is only clickable where the glyph

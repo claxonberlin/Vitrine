@@ -14,6 +14,7 @@ enum Icon: String {
     case download
     case update = "circle-arrow-up"
     case trash = "delete"
+    case more = "options-horizontal"
 
     /// Rendered in the current foreground style. Missing artwork yields nil so
     /// a broken resource bundle leaves a gap rather than taking the app down.
