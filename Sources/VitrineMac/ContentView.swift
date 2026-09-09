@@ -177,8 +177,8 @@ private struct ToolbarIconButton: View {
     var toggledOn: Bool? = nil
     let action: () -> Void
 
-    private static let diameter = Theme.Metrics.iconButtonSize
-    private static let iconSize = Theme.Metrics.iconButtonIcon
+    private static let diameter = Theme.Metrics.actionHeight
+    private static let iconSize = Theme.Metrics.actionIconSize
 
     var body: some View {
         CircleIconButton(icon: icon, label: label, filled: toggledOn == true,
@@ -301,7 +301,7 @@ struct LibraryPane: View {
     private func section(_ branch: BuildBranch) -> some View {
         let items = store.installed(in: branch)
         if !items.isEmpty {
-            SectionHeader(title: branch.title)
+            SectionHeader(title: branch.title, indent: Theme.Metrics.libraryCorner)
             ForEach(items) { item in
                 InstalledRow(build: item)
             }
@@ -313,27 +313,29 @@ struct LibraryPane: View {
 /// tabs the app used to have.
 struct SectionHeader: View {
     let title: String
+    /// How far in from the pane's margin the text starts.
+    ///
+    /// The cards below are rounded, so their leading edge only runs straight
+    /// from the corner radius down. The heading lines up with that — where
+    /// the card's flat edge actually begins — rather than with the corner's
+    /// outermost point, which no edge of the card ever reaches. Each pane
+    /// passes its own cards' radius, since a library card's is 1.6× a
+    /// catalogue card's.
+    var indent: CGFloat = Theme.Metrics.corner
 
     var body: some View {
         Text(title.uppercased())
             .font(.system(size: 10, weight: .semibold))
             .tracking(0.6)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            // The same shape as a badge, not a full-width bar — a heading is
-            // a label, not a divider.
-            .background {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    // Real glass adapts its tint to whatever is directly
-                    // behind it, which reads as inconsistent rather than
-                    // crisp for a small badge sitting over the same busy
-                    // artwork a wide row does. `thinMaterial` stays one
-                    // surface regardless — same call as `RowCard`.
-                    .fill(.thinMaterial)
-            }
+            // The window title's own colour. A branch heading is the window
+            // naming its own contents, the same job the title above it does,
+            // so it is drawn in the same ink rather than demoted to
+            // secondary — which is also what lets it go without a background
+            // and still hold its own against the artwork below it.
+            .foregroundStyle(.primary)
             .fixedSize()
-            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.leading, indent)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 10)
             .padding(.bottom, 2)
             // Spelled out, the uppercase is read one letter at a time.

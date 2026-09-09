@@ -78,19 +78,20 @@ enum Theme {
         /// The gap between a row's own controls.
         static let rowSpacing: CGFloat = 8
 
-        static let actionHeight: CGFloat = 32
-        static let pillWidth: CGFloat = 78     // text-only actions (Launch, Stop, Retry)
-
-        /// The icon-only round buttons: the toolbar's pair, and the Update
-        /// and "···" controls at the trailing end of a library row. One size
-        /// across both, so the window has a single round-button shape rather
-        /// than a different one per place it turns up.
+        /// Every action control in the window stands this tall: the round
+        /// icon-only buttons in the toolbar, at the trailing end of a library
+        /// row and down the leading edge of the catalogue, and the text pills
+        /// that take a catalogue button's place while a download runs.
         ///
-        /// The catalogue's own round buttons stay on `actionHeight`, which is
-        /// also what sets the height of a catalogue row — they cannot grow
-        /// without the rows growing with them.
-        static let iconButtonSize: CGFloat = 36
-        static let iconButtonIcon: CGFloat = 20
+        /// One number for all of them, because they trade places: a
+        /// catalogue row's button becomes a "Stop" pill mid-download and a
+        /// spinner while it installs, and a row that changed height each time
+        /// would make the whole list jump. It sets the height of a catalogue
+        /// row with it — a row is the button plus `rowInset` all round.
+        static let actionHeight: CGFloat = 36
+        /// The glyph inside an icon-only action button.
+        static let actionIconSize: CGFloat = 20
+        static let pillWidth: CGFloat = 78     // text-only actions (Stop, Retry)
 
         /// The library row's Launch button. Its height also sets how tall the
         /// date/tag chip stack beside it stands, so the two line up top and

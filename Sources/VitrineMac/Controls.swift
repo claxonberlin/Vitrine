@@ -82,9 +82,8 @@ struct RowMenu<Actions: View>: View {
     let buildName: String
     @ViewBuilder let actions: () -> Actions
 
-    // The same diameter as the row's Update button, so the round controls
-    // read as one set.
-    private static var diameter: CGFloat { Theme.Metrics.iconButtonSize }
+    // The same diameter as every other action control in the window.
+    private static var diameter: CGFloat { Theme.Metrics.actionHeight }
 
     var body: some View {
         core
@@ -124,7 +123,7 @@ struct RowMenu<Actions: View>: View {
         // The bundled line icon rather than SF Symbols' `ellipsis`, so the
         // dots are drawn from the same set as every other icon in the window
         // and carry that set's weight instead of the system font's.
-        IconView(icon: .more, size: Theme.Metrics.iconButtonIcon)
+        IconView(icon: .more, size: Theme.Metrics.actionIconSize)
             // On the glyph rather than on the Menu: a menu button takes its
             // name from its own label, and a drawn icon has no name of its
             // own to say which row it opens.
@@ -232,7 +231,7 @@ struct CircleIconButton: View {
     var tint: Color = Theme.catalogueAccent
     var filled: Bool = true
     var diameter: CGFloat = Theme.Metrics.actionHeight
-    var iconSize: CGFloat = 17
+    var iconSize: CGFloat = Theme.Metrics.actionIconSize
     let action: () -> Void
 
     var body: some View {
@@ -340,18 +339,18 @@ struct UpdateButton: View {
             ProgressView()
                 .controlSize(.small)
                 .scaleEffect(0.7)
-                .frame(width: Theme.Metrics.iconButtonSize,
-                       height: Theme.Metrics.iconButtonSize)
+                .frame(width: Theme.Metrics.actionHeight,
+                       height: Theme.Metrics.actionHeight)
                 .accessibilityLabel("Updating Blender \(build.version) to \(target.version)")
         } else {
             let label = "Update Blender \(build.version) to \(target.version)"
             Button {
                 store.updateInstall(from: build, to: target)
             } label: {
-                IconView(icon: .update, size: Theme.Metrics.iconButtonIcon)
+                IconView(icon: .update, size: Theme.Metrics.actionIconSize)
                     .foregroundStyle(.white)
-                    .frame(width: Theme.Metrics.iconButtonSize,
-                           height: Theme.Metrics.iconButtonSize)
+                    .frame(width: Theme.Metrics.actionHeight,
+                           height: Theme.Metrics.actionHeight)
             }
             // Carries the hover highlight, and sets the hit region to the
             // whole disc: a `.plain` button is only clickable where the glyph
