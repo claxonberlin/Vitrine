@@ -4,14 +4,12 @@ import VitrineKit
 /// The remote catalogue, as a second page trailing the library rather than a
 /// panel laid on top of it.
 ///
-/// It paints no background of its own — the same splash artwork behind the
-/// library shows straight through here too, with only each row's own glass
-/// standing between them, exactly like the library. A hairline divider on
-/// the leading edge is the only seam between the two, the way a split view
-/// would show one, even though this isn't one: `ContentView` slides this
-/// page in from off the trailing edge and pushes the library most of the
-/// way out of its path rather than resizing anything, so opening it never
-/// changes the window's own width.
+/// It paints no background of its own — the window's own ground shows
+/// straight through here too, with only each row's own card standing between
+/// them, exactly like the library. `ContentView` slides this page in from
+/// off the trailing edge and pushes the library most of the way out of its
+/// path rather than resizing anything, so opening it never changes the
+/// window's own width.
 ///
 /// There's no title here any more — with the library pushed aside rather
 /// than merely covered, the toolbar's own title stands in for it (see
@@ -26,9 +24,6 @@ struct CataloguePane: View {
 
     var body: some View {
         content
-            .overlay(alignment: .leading) {
-                Rectangle().fill(Theme.rowStroke).frame(width: 0.5)
-            }
             .overlay(alignment: .topTrailing) {
                 if store.isFetching {
                     ProgressView()
@@ -168,7 +163,7 @@ struct GroupCard: View {
                 // Just the count — the chevron beside it already says what it
                 // counts, and "N versions" wrapped onto two lines in here.
                 Text("\(group.builds.count)")
-                    .font(.system(size: 10))
+                    .font(Theme.openDigits(size: 10))
                     .monospacedDigit()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))

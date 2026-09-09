@@ -21,6 +21,7 @@ struct VitrineApp: App {
     /// menus read and write lives on `MenuState`, which publishes only when
     /// one of those few values actually moves.
     private let bridge: StoreBridge
+    private let rowSplash = RowSplashCatalog()
     @ObservedObject private var menu: MenuState
     private var store: BuildStore { bridge.store }
 
@@ -36,6 +37,7 @@ struct VitrineApp: App {
             ContentView()
                 .environmentObject(bridge)
                 .environmentObject(menu)
+                .environmentObject(rowSplash)
                 .background(WindowConfigurator { window in
                     FrameKeeper.shared.attach(to: window)
                     // AppKit hands first responder to the first control it

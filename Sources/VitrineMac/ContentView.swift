@@ -43,7 +43,7 @@ struct ContentView: View {
             let travel = geometry.size.width * Self.catalogueTravelFraction
 
             ZStack(alignment: .topTrailing) {
-                SplashBackground()
+                Theme.windowBackground.ignoresSafeArea()
 
                 LibraryPane(showCatalogue: $menu.catalogueShown, addBuild: $menu.addingBuild)
                 // Slides left to make room for the incoming page rather than
@@ -120,9 +120,6 @@ struct ContentView: View {
         Text(showingCatalogue ? "Catalogue" : "Vitrine")
             .font(.system(size: 13, weight: .semibold))
             .contentTransition(.opacity)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .background(TitlePillBackground())
             .animation(.smooth(duration: 0.2), value: showingCatalogue)
             .accessibilityAddTraits(.isHeader)
     }
@@ -167,25 +164,6 @@ struct ContentView: View {
     }
 }
 
-/// The title's own glass pill, the same material a library row's card
-/// wears — so "Vitrine" stays legible over whatever the splash artwork put
-/// behind it without needing the artwork itself to dim or dissolve. Same
-/// split as `RowCard`: real glass on macOS 26, a plain thin material below
-/// it, and the identical hairline stroke either way so the two chrome
-/// pieces (row and title) read as the same material at a glance.
-private struct TitlePillBackground: View {
-    var body: some View {
-        let capsule = Capsule()
-        Group {
-            if #available(macOS 26.0, *) {
-                capsule.fill(.clear).glassEffect(.regular, in: capsule)
-            } else {
-                capsule.fill(.ultraThinMaterial)
-            }
-        }
-        .overlay { capsule.strokeBorder(Theme.rowStroke, lineWidth: 0.5) }
-    }
-}
 
 /// The catalogue toggle and the add-build button: `CircleIconButton` at the
 /// smaller size the title bar wants, with the toggle's resting state left
@@ -263,7 +241,7 @@ struct LibraryPane: View {
             emptyState
         } else {
             ScrollView {
-                LazyVStack(spacing: 4) {
+                LazyVStack(spacing: Theme.Metrics.libraryRowGap) {
                     ForEach(BuildBranch.allCases) { branch in
                         section(branch)
                     }
@@ -273,13 +251,7 @@ struct LibraryPane: View {
             }
             .scrollContentBackground(.hidden)
             // The system's own soft scroll-edge dissolve, blurring rows as
-            // they pass under the toolbar. It can't reach the splash artwork
-            // behind them too — that effect only ever touches genuine
-            // scrolling content, not a `.background()` decoration, and the
-            // artwork has to stay a persistent backdrop rather than content
-            // that scrolls away — so the title wears its own glass pill
-            // instead of depending on the artwork dissolving under it. See
-            // `TitlePillBackground`.
+            // they pass under the toolbar.
             .softScrollEdgeCompat(for: .top)
         }
     }

@@ -1,6 +1,33 @@
 import SwiftUI
 import VitrineKit
 
+extension View {
+    /// The one glass treatment every button on a library row shares — Launch,
+    /// Update and the "···" menu. `.glassProminent` can't be dialled for
+    /// translucency, so the row's buttons are hand-built from `.glassEffect`
+    /// with a semi-transparent tint (`Theme.cardGlassOpacity`) instead; only
+    /// the tint colour changes between them. Below macOS 26 it falls back to a
+    /// near-solid fill, matching the rest of the pre-glass UI.
+    ///
+    /// `interactive` adds the press/hover lensing response and belongs only on
+    /// things you actually click — the buttons, not the date and tag chips
+    /// that wear the same material.
+    @ViewBuilder
+    func cardGlass<S: Shape>(tint: Color, in shape: S, interactive: Bool = true) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(cardGlassStyle(tint: tint, interactive: interactive), in: shape)
+        } else {
+            self.background(shape.fill(tint.opacity(0.88)))
+        }
+    }
+}
+
+@available(macOS 26.0, *)
+private func cardGlassStyle(tint: Color, interactive: Bool) -> Glass {
+    let base = Glass.regular.tint(tint.opacity(Theme.cardGlassOpacity))
+    return interactive ? base.interactive() : base
+}
+
 /// The card behind a row. Lifts slightly under the pointer so a long list
 /// still tells you which row you are on.
 ///
@@ -56,37 +83,51 @@ struct RowMenu<Actions: View>: View {
     let buildName: String
     @ViewBuilder let actions: () -> Actions
 
-    @State private var hovered = false
-
-    // As tall as the Launch button beside it, so the two read as one row of
-    // controls at the same height rather than a large button and a small one.
+    // The same diameter as the row's Update button, so the round controls
+    // read as one set.
     private static var diameter: CGFloat { Theme.Metrics.actionHeight }
 
     var body: some View {
+        core
+            .handCursor()
+            .help(Self.label(for: buildName))
+    }
+
+    @ViewBuilder
+    private var core: some View {
+        // `.button` rather than `.borderlessButton`, which sizes its control
+        // to the glyph and ignores any frame on the label: that left a 32pt
+        // disc of which only the middle 20×14 actually opened anything, and
+        // the rest of the visible circle swallowed the click. The button menu
+        // style hands the label to the ambient `buttonStyle`, so `.plain`
+        // keeps the frame and `contentShape` below and the whole disc is the
+        // target. Verified against the accessibility frame, not by eye.
+        //
+        // The glass still goes on the `Menu` itself — applied to the label it
+        // doesn't render at all.
         Menu(content: actions) {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 11, weight: .semibold))
-                // On the glyph rather than on the Menu: a menu button takes
-                // its name from its own label, and the symbol's built-in one
-                // ("More", localised) says nothing about which row it opens.
-                .accessibilityLabel(Self.label(for: buildName))
+            glyph
+                .foregroundStyle(.secondary)
+                .frame(width: Self.diameter, height: Self.diameter)
+                .contentShape(Circle())
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
-        .foregroundStyle(.secondary)
-        .frame(width: Self.diameter, height: Self.diameter)
-        .background {
-            // Black rather than `primary`, which would lighten the well in
-            // dark mode instead of deepening it.
-            Circle().fill(Color.black.opacity(hovered ? 0.20 : 0.13))
-        }
-        .overlay {
-            Circle().strokeBorder(Color.white.opacity(hovered ? 0.10 : 0), lineWidth: 0.5)
-        }
-        .animation(.smooth(duration: 0.12), value: hovered)
-        .onHover { hovered = $0 }
-        .handCursor()
-        .help(Self.label(for: buildName))
+        .fixedSize()
+        // The system's control surface rather than a literal white, so the
+        // disc stays light in light appearance and turns with the rest of the
+        // chrome in dark — the same way the chips' material does.
+        .cardGlass(tint: Color(nsColor: .controlBackgroundColor), in: Circle())
+    }
+
+    private var glyph: some View {
+        Image(systemName: "ellipsis")
+            .font(.system(size: 11, weight: .semibold))
+            // On the glyph rather than on the Menu: a menu button takes its
+            // name from its own label, and the symbol's built-in one
+            // ("More", localised) says nothing about which row it opens.
+            .accessibilityLabel(Self.label(for: buildName))
     }
 
     private static func label(for buildName: String) -> String {
@@ -284,6 +325,7 @@ private struct LegacyCircleIconButton: View {
                     }
                 }
                 .shadow(color: .black.opacity(filled ? 0 : 0.22), radius: 2.5, y: 1)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
@@ -308,11 +350,24 @@ struct UpdateButton: View {
                 .frame(width: Theme.Metrics.actionHeight, height: Theme.Metrics.actionHeight)
                 .accessibilityLabel("Updating Blender \(build.version) to \(target.version)")
         } else {
-            CircleIconButton(icon: .update,
-                             label: "Update Blender \(build.version) to \(target.version)",
-                             hint: "your preferences and add-ons are kept") {
+            let label = "Update Blender \(build.version) to \(target.version)"
+            Button {
                 store.updateInstall(from: build, to: target)
+            } label: {
+                IconView(icon: .update, size: 17)
+                    .foregroundStyle(.white)
+                    .frame(width: Theme.Metrics.actionHeight, height: Theme.Metrics.actionHeight)
+                    // Without this a `.plain` button is only clickable where
+                    // the glyph itself is drawn, not across the whole disc.
+                    .contentShape(Circle())
             }
+            .buttonStyle(.plain)
+            // Same glass as Launch and the "···" menu; only the tint differs.
+            .cardGlass(tint: Theme.catalogueAccent, in: Circle())
+            .handCursor()
+            .help("\(label) — your preferences and add-ons are kept")
+            .accessibilityLabel(label)
+            .accessibilityHint("your preferences and add-ons are kept")
         }
     }
 }

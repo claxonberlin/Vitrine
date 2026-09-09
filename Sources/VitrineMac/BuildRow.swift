@@ -4,6 +4,11 @@ import VitrineKit
 /// A row for a build already in the library.
 struct InstalledRow: View {
     @EnvironmentObject private var bridge: StoreBridge
+    @EnvironmentObject private var splash: RowSplashCatalog
+    /// `.key` while this is the frontmost window, `.inactive` when the app is
+    /// in the background — the splash art desaturates and dims in step with
+    /// it, the way the OS greys its own chrome.
+    @Environment(\.controlActiveState) private var activeState
     private var store: BuildStore { bridge.store }
     let build: InstalledBuild
 
@@ -11,80 +16,111 @@ struct InstalledRow: View {
 
     var body: some View {
         content
-            .padding(.horizontal, Theme.Metrics.rowInset)
-            .frame(height: Theme.Metrics.rowHeight)
-            // No hover fill. A library row isn't clickable as a row, so
-            // lighting it up under the pointer promised something that never
-            // happened — the buttons on it do their own hover instead.
-            .background(RowCard())
+            .padding(.horizontal, Theme.Metrics.libraryRowInset)
+            // Pin the row — and therefore its card — to exactly the width the
+            // list offers, so the background always keeps the window margin.
+            // Without this a row whose controls don't fit at the minimum
+            // window size (the Update button is the one that tips it over)
+            // lets its HStack overflow, and the card grew with it.
+            .frame(maxWidth: .infinity)
+            .frame(height: Theme.Metrics.libraryRowHeight)
+            // Purely the release's own splash painting, cropped to the card —
+            // no glass, material or colour over it. Legibility comes later.
+            .background(rowBackground)
+            // The card's own hit region, now that its background declines
+            // every click: this is what still gives right-click somewhere to
+            // land across the whole row. It doesn't clip the buttons inside.
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.libraryCorner,
+                                           style: .continuous))
             .contextMenu { rowActions }
             .uninstallConfirmation(for: build, isPresented: $confirmingUninstall)
+            // The one place the artwork is fetched. Never from `body` — see
+            // `RowSplashCatalog`.
+            .task(id: build.version) { await splash.load(for: build.version) }
     }
+
+    @ViewBuilder
+    private var rowBackground: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Metrics.libraryCorner, style: .continuous)
+        // A mid-light grey until (and unless) the release's painting is in
+        // hand — a daily build has no splash of its own, and a release's art
+        // may still be downloading. The solid base also takes exactly the
+        // row's frame, so the painting on top is clipped to the card and
+        // never spills into the rows above and below.
+        Theme.cardPlaceholder
+            .overlay {
+                if let art = splash.image(for: build.version) {
+                    Image(nsImage: art)
+                        .resizable()
+                        .scaledToFill()
+                }
+            }
+            .clipShape(shape)
+            .saturation(inactive ? 0 : 1)
+            .opacity(inactive ? 0.6 : 1)
+            .animation(.smooth(duration: 0.2), value: inactive)
+            // Decoration, and it must never take a click. `scaledToFill` sizes
+            // a 16:9 painting to ~450×253 inside a 450×70 row, so it hangs
+            // ~90pt past the card top and bottom; `clipShape` above hides that
+            // but does not reliably clip hit testing, and a `VStack` draws
+            // later siblings over earlier ones — so each row's artwork was
+            // swallowing the clicks meant for the row above it. Only the
+            // bottom row, and any row under one with no splash of its own,
+            // still worked.
+            .allowsHitTesting(false)
+    }
+
+    /// The app is in the background — no window of it is key.
+    private var inactive: Bool { activeState == .inactive }
 
     private var content: some View {
-        HStack(spacing: Theme.Metrics.rowSpacing) {
-            PillButton(title: "Launch", tint: Theme.blenderBlue,
-                       help: "Open Blender \(build.version)") {
-                store.launch(build)
+        HStack(spacing: Theme.Metrics.libraryRowSpacing) {
+            // The version *is* the label — no separate "Launch" word and no
+            // plain version text beside it.
+            LaunchButton(version: build.version) { store.launch(build) }
+
+            // Two stacked rows beside it, same chip styling on both: tags on
+            // top, the "added" date on the bottom. The gap between the rows,
+            // the gap from the top chip to the top of the Launch button, and
+            // the gap from the bottom chip to its bottom are all the same
+            // `cardChipGap` — 2·chipHeight + 3·gap == the button's height.
+            VStack(alignment: .leading, spacing: Theme.Metrics.cardChipGap) {
+                HStack(spacing: 4) {
+                    let isLTS = store.isLTS(build.version)
+                    // "Stable" beside "LTS" says nothing "LTS" doesn't — an
+                    // LTS build is always stable branch, stable risk.
+                    if !(isLTS && build.riskId == "stable") {
+                        CardChip(text: build.riskLabel)
+                    }
+                    if isLTS {
+                        CardChip(text: "LTS")
+                            .accessibilityLabel("Long-term support")
+                    }
+                }
+
+                CardChip(text: DateFormat.day(build.installedAt))
+                    .accessibilityLabel("Added \(DateFormat.day(build.installedAt))")
             }
+            .padding(.vertical, Theme.Metrics.cardChipGap)
+            .frame(height: Theme.Metrics.launchButtonSize.height, alignment: .leading)
+            // Lowest priority in the row: at the minimum window size the
+            // chips give way before the fixed-size controls do.
+            .layoutPriority(-1)
 
-            // LTS grouped right against the version it qualifies — the two
-            // read as one identity, not a version followed by a separate
-            // status chip.
-            HStack(spacing: 4) {
-                // A build the user added by hand is named after whatever is
-                // on disk, so this is the one label on a row with no bound on
-                // its length. It truncates rather than pushing the row wider
-                // than the window; everything beside it is a short, fixed
-                // string or a fixed-size control.
-                Text(build.version)
-                    .font(.system(size: 13, weight: .medium))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                if store.isLTS(build.version) { LTSBadge() }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(store.isLTS(build.version)
-                                ? "Blender \(build.version), long-term support"
-                                : "Blender \(build.version)")
+            Spacer(minLength: Theme.Metrics.libraryRowSpacing)
 
-            if let target = store.updateAvailable(for: build) {
-                UpdateButton(build: build, target: target)
-                    .transition(.scale.combined(with: .opacity))
-            }
+            // The two round controls sit together at the trailing edge, Update
+            // immediately left of the "···" menu — in their own HStack so
+            // their gap is `rowTrailingSpacing`, not the row-wide spacing.
+            HStack(spacing: Theme.Metrics.rowTrailingSpacing) {
+                if let target = store.updateAvailable(for: build) {
+                    UpdateButton(build: build, target: target)
+                        .transition(.scale.combined(with: .opacity))
+                }
 
-            if let riskLabel = build.displayRiskLabel {
-                Badge(text: riskLabel)
-            }
-
-            Spacer(minLength: Theme.Metrics.rowSpacing)
-
-            dates
-
-            RowMenu(buildName: build.version) { rowActions }
-        }
-    }
-
-    private var dates: some View {
-        VStack(alignment: .trailing, spacing: 1) {
-            Text(DateFormat.day(build.installedAt))
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            if let last = build.lastLaunchedAt {
-                Text("Opened \(DateFormat.relative(last))")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
+                RowMenu(buildName: build.version) { rowActions }
             }
         }
-        .monospacedDigit()
-        // A date is a fixed, short string; wrapping it onto two lines to
-        // save four points is never the right trade.
-        .lineLimit(1)
-        .fixedSize(horizontal: true, vertical: false)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(build.lastLaunchedAt.map {
-            "Installed \(DateFormat.day(build.installedAt)), last opened \(DateFormat.relative($0))"
-        } ?? "Installed \(DateFormat.day(build.installedAt))")
     }
 
     @ViewBuilder
@@ -194,7 +230,7 @@ struct RemoteRow: View {
                     .controlSize(.small)
                     .frame(width: 74)
                 Text(DurationFormat.eta(seconds: etaSeconds))
-                    .font(.system(size: 9))
+                    .font(Theme.openDigits(size: 9))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
@@ -214,7 +250,7 @@ struct RemoteRow: View {
             // the less useful of the two when picking a build to download.
             if build.fileSize > 0 {
                 Text(ByteFormat.string(build.fileSize))
-                    .font(.system(size: 10))
+                    .font(Theme.openDigits(size: 10))
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
                     .accessibilityLabel("Download size \(ByteFormat.string(build.fileSize))")
@@ -242,7 +278,7 @@ struct CatalogueAction: View {
         HStack(spacing: Theme.Metrics.rowSpacing) {
             action
             Text(label ?? build.version)
-                .font(.system(size: 13, weight: .medium))
+                .font(Theme.openDigits(size: 13, weight: .medium))
                 .monospacedDigit()
                 .fixedSize()
                 .accessibilityLabel("Blender \(label ?? build.version)")
@@ -297,5 +333,73 @@ struct CatalogueAction: View {
                 }
             }
         }
+    }
+}
+
+/// A small text chip on a library card — the "added" date and each tag wear
+/// it: Sequoia's `.thinMaterial` in a small-radius rectangle that hugs the
+/// text, with dark text on top.
+private struct CardChip: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(Theme.openDigits(size: 12, weight: .semibold).smallCaps())
+            .fontWidth(.condensed)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            // Semantic, so it inverts with the material behind it in dark
+            // appearance instead of staying ink on a now-dark chip.
+            .foregroundStyle(.secondary)
+            // Optical centring. The frame below centres the *line box*, which
+            // runs from ascender to descender — and small caps, digits and
+            // capitals reach neither, so the ink lands a point low. Nudged
+            // back up before the frame is applied, so this shifts what is
+            // drawn without moving the chip or its material.
+            .offset(y: -1)
+            .padding(.horizontal, 5)
+            .frame(height: Theme.Metrics.cardChipHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(.thickMaterial)
+            )
+            .accessibilityLabel(text)
+    }
+}
+
+/// The library row's primary action: opens the build. Its label is the
+/// version number itself — heavy, condensed, with SF Pro's open-digit
+/// stylistic sets — and it stands 50% taller than the row's round controls
+/// so the number reads as the anchor of the row. Same glass material as the
+/// Update and overflow buttons; only the tint (Blender blue) differs.
+private struct LaunchButton: View {
+    let version: String
+    let action: () -> Void
+
+    /// Every Launch button is this exact size, whatever its version string —
+    /// a wall of same-shaped buttons down the leading edge, not a ragged one.
+    private static let size = Theme.Metrics.launchButtonSize
+
+    var body: some View {
+        Button(action: action) {
+            Text(version)
+                .font(Theme.openDigits(size: 21, weight: .bold))
+                .fontWidth(.condensed)
+                .lineLimit(1)
+                // A hand-added build can be named anything; shrink to fit
+                // rather than clip or force the fixed-width button wider.
+                .minimumScaleFactor(0.5)
+                .foregroundStyle(.white)
+                .frame(width: Self.size.width, height: Self.size.height)
+                // A `.plain` button takes its hit region from what the label
+                // actually draws — without this only the glyphs of the version
+                // are clickable and the rest of the pill is dead.
+                .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .cardGlass(tint: Theme.blenderBlue, in: Capsule(style: .continuous))
+        .handCursor()
+        .help("Open Blender \(version)")
+        .accessibilityLabel("Open Blender \(version)")
     }
 }
