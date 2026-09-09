@@ -146,13 +146,13 @@ struct GroupCard: View {
         }
         .padding(.horizontal, Theme.Metrics.rowInset)
         .frame(height: Theme.Metrics.rowHeight)
-        // Anywhere in the header folds the group, not just the chevron in its
-        // corner — so the whole bar takes the pointing hand, and the button
-        // inside it is what carries the same action to the keyboard and to
-        // VoiceOver, which a tap gesture reaches neither of.
+        // Anywhere in the header folds the group, not just the chevron in
+        // its corner. The card behind it lights up under the pointer, which
+        // is what says the whole bar is live; the button inside carries the
+        // same action to the keyboard and to VoiceOver, which a tap gesture
+        // reaches neither of.
         .contentShape(Rectangle())
         .onTapGesture { store.toggleExpansion(group.minorKey) }
-        .handCursor()
     }
 
     private var disclosure: some View {
@@ -171,9 +171,13 @@ struct GroupCard: View {
                     .frame(width: 12)
             }
             .foregroundStyle(.secondary)
-            .contentShape(Rectangle())
+            .padding(.horizontal, 5)
+            .padding(.vertical, 4)
         }
-        .buttonStyle(.plain)
+        // Bare glyphs, so the hover highlight is the only thing marking this
+        // out as a control of its own. The header behind it lights up too, so
+        // this has to read as a separate target within that.
+        .buttonStyle(.bare())
         .help(isExpanded ? "Collapse \(group.minorKey)" : "Show every \(group.minorKey) release")
         .accessibilityLabel(isExpanded
                             ? "Collapse Blender \(group.minorKey)"

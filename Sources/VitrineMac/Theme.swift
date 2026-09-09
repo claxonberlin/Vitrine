@@ -143,29 +143,3 @@ enum Theme {
         static let windowDefaultHeight: CGFloat = 560
     }
 }
-
-extension View {
-    /// Shows the pointing-hand cursor while the pointer is over the receiver.
-    ///
-    /// An AppKit cursor rect rather than `NSCursor.push`/`pop`: cursor rects
-    /// are managed by the window and can't leak a stuck cursor when SwiftUI
-    /// tears the view down mid-hover. SwiftUI's own `pointerStyle` was tried
-    /// here and reverted — its regions came and went unreliably in the
-    /// toolbar, leaving the pointing hand behind after the pointer had moved
-    /// on, which is the very thing cursor rects are here to avoid.
-    func handCursor() -> some View {
-        overlay(HandCursorOverlay().allowsHitTesting(false))
-    }
-}
-
-private struct HandCursorOverlay: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { HandCursorNSView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
-private final class HandCursorNSView: NSView {
-    override func resetCursorRects() {
-        discardCursorRects()
-        addCursorRect(bounds, cursor: .pointingHand)
-    }
-}

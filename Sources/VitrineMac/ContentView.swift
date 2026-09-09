@@ -276,12 +276,12 @@ struct LibraryPane: View {
                 .frame(maxWidth: 240)
         } actions: {
             HStack(spacing: 10) {
+                // Stock system buttons, which bring their own hover and
+                // pressed states — nothing to add by hand here.
                 Button("Show Catalogue") { showCatalogue = true }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.catalogueAccent)
-                    .handCursor()
                 Button("Add Build…") { addBuild = true }
-                    .handCursor()
             }
             // The placeholder sizes its actions row to the description above
             // it, which clips a two-button row's labels.
@@ -374,13 +374,13 @@ struct ErrorBanner: View {
                     .font(.system(size: 9, weight: .bold))
                     // A 9-point glyph is not a target; the frame around it is.
                     .frame(width: 20, height: 20)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            // The glyph has no fill of its own, so the hover highlight is the
+            // whole of what says this is a button rather than an icon.
+            .buttonStyle(.bare(cornerRadius: 5))
             .foregroundStyle(.secondary)
             .help("Dismiss")
             .accessibilityLabel("Dismiss")
-            .handCursor()
         }
         .padding(.leading, 10)
         .padding(.trailing, 4)

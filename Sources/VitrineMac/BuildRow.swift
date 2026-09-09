@@ -391,14 +391,13 @@ private struct LaunchButton: View {
                 .minimumScaleFactor(0.5)
                 .foregroundStyle(.white)
                 .frame(width: Self.size.width, height: Self.size.height)
-                // A `.plain` button takes its hit region from what the label
-                // actually draws — without this only the glyphs of the version
-                // are clickable and the rest of the pill is dead.
-                .contentShape(Capsule(style: .continuous))
         }
-        .buttonStyle(.plain)
+        // Carries the hover highlight, and sets the hit region to the whole
+        // capsule: a `.plain` button takes its region from what the label
+        // actually draws, which left only the glyphs of the version clickable
+        // and the rest of the pill dead.
+        .buttonStyle(.pill())
         .cardGlass(tint: Theme.blenderBlue, in: Capsule(style: .continuous))
-        .handCursor()
         .help("Open Blender \(version)")
         .accessibilityLabel("Open Blender \(version)")
     }

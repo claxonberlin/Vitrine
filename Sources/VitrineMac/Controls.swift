@@ -9,23 +9,22 @@ extension View {
     /// the tint colour changes between them. Below macOS 26 it falls back to a
     /// near-solid fill, matching the rest of the pre-glass UI.
     ///
-    /// `interactive` adds the press/hover lensing response and belongs only on
-    /// things you actually click — the buttons, not the date and tag chips
-    /// that wear the same material.
+    /// Deliberately *not* `.interactive()`. That modifier gives the glass its
+    /// own press-and-hover lensing, which sounds right for a button — but the
+    /// glass here is applied outside the `Button`, and an interactive glass
+    /// layer takes the pointer for itself: every control wearing one stopped
+    /// reporting hover to the button underneath it at all, measured as a
+    /// pixel-identical control at rest and under the pointer. `Hover` and
+    /// `InteractiveButtonStyle` supply the response instead, from inside the
+    /// button where the events actually are.
     @ViewBuilder
-    func cardGlass<S: Shape>(tint: Color, in shape: S, interactive: Bool = true) -> some View {
+    func cardGlass<S: Shape>(tint: Color, in shape: S) -> some View {
         if #available(macOS 26.0, *) {
-            self.glassEffect(cardGlassStyle(tint: tint, interactive: interactive), in: shape)
+            self.glassEffect(.regular.tint(tint.opacity(Theme.cardGlassOpacity)), in: shape)
         } else {
             self.background(shape.fill(tint.opacity(0.88)))
         }
     }
-}
-
-@available(macOS 26.0, *)
-private func cardGlassStyle(tint: Color, interactive: Bool) -> Glass {
-    let base = Glass.regular.tint(tint.opacity(Theme.cardGlassOpacity))
-    return interactive ? base.interactive() : base
 }
 
 /// The card behind a row. Lifts slightly under the pointer so a long list
@@ -89,7 +88,6 @@ struct RowMenu<Actions: View>: View {
 
     var body: some View {
         core
-            .handCursor()
             .help(Self.label(for: buildName))
     }
 
@@ -99,9 +97,9 @@ struct RowMenu<Actions: View>: View {
         // to the glyph and ignores any frame on the label: that left a 32pt
         // disc of which only the middle 20×14 actually opened anything, and
         // the rest of the visible circle swallowed the click. The button menu
-        // style hands the label to the ambient `buttonStyle`, so `.plain`
-        // keeps the frame and `contentShape` below and the whole disc is the
-        // target. Verified against the accessibility frame, not by eye.
+        // style hands the label to the ambient `buttonStyle`, so the disc
+        // style below keeps the frame and sets the hit region to the whole
+        // circle. Verified against the accessibility frame, not by eye.
         //
         // The glass still goes on the `Menu` itself — applied to the label it
         // doesn't render at all.
@@ -109,10 +107,11 @@ struct RowMenu<Actions: View>: View {
             glyph
                 .foregroundStyle(.secondary)
                 .frame(width: Self.diameter, height: Self.diameter)
-                .contentShape(Circle())
         }
         .menuStyle(.button)
-        .buttonStyle(.plain)
+        // The well is light in light appearance and dark in dark, so the
+        // highlight has to be semantic to show up on either.
+        .buttonStyle(.disc(hoverInk: Hover.onSurface))
         .menuIndicator(.hidden)
         .fixedSize()
         // The system's control surface rather than a literal white, so the
@@ -146,7 +145,6 @@ struct PillButton: View {
 
     var body: some View {
         core
-            .handCursor()
             .help(help ?? title)
             .accessibilityLabel(help ?? title)
     }
@@ -175,6 +173,9 @@ struct PillButton: View {
             .tint(tint)
             .buttonBorderShape(.capsule)
             .buttonSizing(.fitted)
+            // Prominent glass barely moves under the pointer on its own —
+            // see `hoverHighlight`.
+            .hoverHighlight(in: Capsule(style: .continuous))
         } else {
             LegacyPillButton(tint: tint, action: action) {
                 label(width: Theme.Metrics.pillWidth, height: Theme.Metrics.actionHeight)
@@ -190,41 +191,21 @@ struct PillButton: View {
 }
 
 /// The pre-26 pill: a hand-filled capsule, since there's no real glass to
-/// reach for below macOS 26.
+/// reach for below macOS 26. Hover and press come from the same shared style
+/// the rest of the app's hand-drawn controls use, so the two eras of the UI
+/// respond identically.
 private struct LegacyPillButton<Label: View>: View {
     let tint: Color
     let action: () -> Void
     @ViewBuilder let label: () -> Label
 
-    @State private var hovered = false
-
     var body: some View {
-        Button(action: action) { label() }
-            .buttonStyle(FilledPillStyle(tint: tint, hovered: hovered))
-            .onHover { hovered = $0 }
-    }
-}
-
-/// One filled-pill look for every action button, so hover and press feel the
-/// same wherever you click.
-private struct FilledPillStyle: ButtonStyle {
-    let tint: Color
-    let hovered: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(.white)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(tint.opacity(configuration.isPressed ? 0.7 : (hovered ? 1.0 : 0.88)))
-            }
-            .overlay {
-                Capsule(style: .continuous)
-                    .strokeBorder(.white.opacity(hovered ? 0.2 : 0), lineWidth: 1)
-            }
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.smooth(duration: 0.12), value: hovered)
-            .animation(.smooth(duration: 0.08), value: configuration.isPressed)
+        Button(action: action) {
+            label()
+                .foregroundStyle(.white)
+                .background(Capsule(style: .continuous).fill(tint))
+        }
+        .buttonStyle(.pill())
     }
 }
 
@@ -253,7 +234,6 @@ struct CircleIconButton: View {
 
     var body: some View {
         core
-            .handCursor()
             .help(hint.map { "\(label) — \($0)" } ?? label)
             .accessibilityLabel(label)
             .accessibilityHint(hint ?? "")
@@ -287,6 +267,10 @@ struct CircleIconButton: View {
             Button(action: action) { label }
                 .buttonStyle(.glassProminent)
                 .tint(tint)
+                // Prominent glass has no hover response worth the name of its
+                // own — see `hoverHighlight`. The plain glass below does, so
+                // it is left alone.
+                .hoverHighlight(in: Circle())
         } else {
             Button(action: action) { label }
                 .buttonStyle(.glass)
@@ -304,8 +288,6 @@ private struct LegacyCircleIconButton: View {
     let iconSize: CGFloat
     let action: () -> Void
 
-    @State private var hovered = false
-
     var body: some View {
         Button(action: action) {
             IconView(icon: icon, size: iconSize)
@@ -313,9 +295,7 @@ private struct LegacyCircleIconButton: View {
                 .foregroundStyle(filled ? .white : Color.black.opacity(0.72))
                 .frame(width: diameter, height: diameter)
                 .background {
-                    Circle().fill(filled
-                                  ? tint.opacity(hovered ? 1.0 : 0.88)
-                                  : Color.white.opacity(hovered ? 1.0 : 0.82))
+                    Circle().fill(filled ? tint : Color.white.opacity(0.92))
                 }
                 .overlay {
                     // Only the resting disc needs an edge: it has no colour of
@@ -325,12 +305,11 @@ private struct LegacyCircleIconButton: View {
                     }
                 }
                 .shadow(color: .black.opacity(filled ? 0 : 0.22), radius: 2.5, y: 1)
-                .contentShape(Circle())
         }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-        .animation(.smooth(duration: 0.12), value: hovered)
-        .animation(.smooth(duration: 0.12), value: filled)
+        // White brightens the tinted disc; the resting one is already near
+        // white, so it takes the semantic ink instead.
+        .buttonStyle(.disc(hoverInk: filled ? Hover.onTint : Hover.onSurface))
+        .animation(Hover.response, value: filled)
     }
 }
 
@@ -357,14 +336,13 @@ struct UpdateButton: View {
                 IconView(icon: .update, size: 17)
                     .foregroundStyle(.white)
                     .frame(width: Theme.Metrics.actionHeight, height: Theme.Metrics.actionHeight)
-                    // Without this a `.plain` button is only clickable where
-                    // the glyph itself is drawn, not across the whole disc.
-                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            // Carries the hover highlight, and sets the hit region to the
+            // whole disc: a `.plain` button is only clickable where the glyph
+            // itself is drawn.
+            .buttonStyle(.disc())
             // Same glass as Launch and the "···" menu; only the tint differs.
             .cardGlass(tint: Theme.catalogueAccent, in: Circle())
-            .handCursor()
             .help("\(label) — your preferences and add-ons are kept")
             .accessibilityLabel(label)
             .accessibilityHint("your preferences and add-ons are kept")
