@@ -3,17 +3,23 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Fetches and caches the splash artwork Blender ships with a release — the
-/// painting on the startup screen, commissioned fresh for every X.Y series.
+/// The splash artwork Blender ships with a release — the painting on the
+/// startup screen, commissioned fresh for every X.Y series.
 ///
-/// There is no API for it. The artwork is the social-preview image on the
+/// Every released series' painting travels inside the app, put there by
+/// `./splashes.sh`, so a fresh install already has the whole set and nothing
+/// is fetched when a build is installed. Scraping remains as the fallback for
+/// a series newer than the app itself, and what it fetches is cached beside
+/// the settings.
+///
+/// There is no API for the artwork. It is the social-preview image on the
 /// release's own announcement page, so that is what gets read; the file names
 /// themselves follow no pattern worth guessing at (`splash5_2.webp`,
 /// `blender_splash_45.webp`, `splash_render-final_2k-480x270.webp`).
 ///
-/// Everything here is best-effort. A redesign, a missing page or no network
-/// leaves the caller with nil and a window that simply has no picture behind
-/// it.
+/// Everything past the bundled set is best-effort. A redesign, a missing page
+/// or no network leaves the caller with nil and a window that simply has no
+/// picture behind it.
 public struct SplashLibrary: Sendable {
     private let directory: URL
 
@@ -22,9 +28,19 @@ public struct SplashLibrary: Sendable {
             .appendingPathComponent("Splash", isDirectory: true)
     }
 
-    /// The artwork for a minor series ("5.2"), downloading it the first time
-    /// and reading the cache afterwards. Returns a local file URL.
+    /// A daily build's backdrop.
+    ///
+    /// Dailies have no splash of their own — the painting is commissioned for
+    /// a release, and a nightly build of `main` is not one — so they share a
+    /// single standing image, blurred so a row's chips read over any part of
+    /// it. Gleb Alexandrov's "Exploding Madness", made in Blender.
+    public static var dailyArtwork: URL? { bundledFile(named: "daily") }
+
+    /// The artwork for a minor series ("5.2"): the copy that shipped with the
+    /// app, else one fetched earlier, else blender.org. Returns a local file
+    /// URL.
     public func artwork(forSeries series: String) async -> URL? {
+        if let bundled = Self.bundledFile(named: series) { return bundled }
         if let cached = cachedFile(forSeries: series) { return cached }
         guard let remote = try? await Self.remoteArtworkURL(forSeries: series),
               let data = try? await Self.download(remote), !data.isEmpty
@@ -36,6 +52,12 @@ public struct SplashLibrary: Sendable {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         guard (try? data.write(to: destination, options: .atomic)) != nil else { return nil }
         return destination
+    }
+
+    /// Artwork that travels inside the app. All of it is normalised to JPEG
+    /// by `splashes.sh`, so one extension covers the folder.
+    static func bundledFile(named name: String) -> URL? {
+        Bundle.module.url(forResource: name, withExtension: "jpg", subdirectory: "Splashes")
     }
 
     /// Any previously downloaded artwork for the series, whatever extension it

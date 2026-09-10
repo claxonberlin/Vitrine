@@ -58,7 +58,10 @@ let package = Package(
     platforms: [.macOS(.v14)],
     dependencies: uiDependencies,
     targets: [
-        .target(name: "VitrineKit"),
+        // The splash paintings ship with the app rather than being scraped
+        // on demand: `./splashes.sh` fills the folder, so an install already
+        // has every released series' artwork and the daily's standing one.
+        .target(name: "VitrineKit", resources: [.copy("Resources/Splashes")]),
 
         .executableTarget(
             name: "Vitrine",

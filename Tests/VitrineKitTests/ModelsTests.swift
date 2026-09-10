@@ -167,3 +167,18 @@ final class RecentDayTests: XCTestCase {
         XCTAssertEqual(DateFormat.recentDay(.distantPast, now: now), "—")
     }
 }
+
+/// The paintings travel inside the app. If this fails, either `splashes.sh`
+/// hasn't been run or the resource declaration in `Package.swift` moved.
+final class BundledSplashTests: XCTestCase {
+    func testEveryReleasedSeriesHasArtwork() {
+        for series in ["2.80", "2.93", "3.6", "4.2", "4.5", "5.0", "5.2"] {
+            XCTAssertNotNil(SplashLibrary.bundledFile(named: series),
+                            "no bundled splash for \(series)")
+        }
+    }
+
+    func testDailiesHaveTheirStandingBackdrop() {
+        XCTAssertNotNil(SplashLibrary.dailyArtwork)
+    }
+}

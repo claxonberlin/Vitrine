@@ -28,7 +28,16 @@ GNOME.
 
 The catalogue floats over the library rather than splitting the window, so
 opening it never resizes anything. Behind both sits the splash artwork of the
-newest Blender release, fetched from that release's own announcement page.
+newest Blender release, and every library card wears its own release's
+painting.
+
+Those paintings ship with the app. `./splashes.sh` fills
+`Sources/VitrineKit/Resources/Splashes/` with one per released series — the
+social-preview image on each release's announcement page, since there is no
+API for the artwork — and the app reads them from its own bundle. Nothing is
+fetched when a build is installed; the scrape survives only as the fallback
+for a series newer than the app itself. Daily builds get no painting of their
+own, so they share one blurred backdrop.
 
 There is no settings window on either platform. The app has one setting — how
 far back to scrape the stable archive — and each front end puts it where that
@@ -94,7 +103,8 @@ Linux unpack path, which only runs when the tests are built on Linux.
 | Path | |
 | --- | --- |
 | `Sources/VitrineKit/BlenderAPI.swift` | catalogue fetch and parsing |
-| `Sources/VitrineKit/Splash.swift` | splash artwork fetch and cache |
+| `Sources/VitrineKit/Splash.swift` | splash artwork: the bundled set, and the fallback fetch |
+| `Sources/VitrineKit/Resources/Splashes/` | one painting per released series, plus the daily backdrop |
 | `Sources/VitrineKit/Installer.swift` | download → unpack → library layout |
 | `Sources/VitrineKit/BuildStore.swift` | the view model both front ends drive |
 | `Sources/VitrineKit/Platform/` | the per-OS half |

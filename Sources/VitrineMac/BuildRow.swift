@@ -36,20 +36,24 @@ struct InstalledRow: View {
             .uninstallConfirmation(for: build, isPresented: $confirmingUninstall)
             // The one place the artwork is fetched. Never from `body` — see
             // `RowSplashCatalog`.
-            .task(id: build.version) { await splash.load(for: build.version) }
+            // A daily's backdrop ships with the app, so only a release has
+            // anything to load.
+            .task(id: build.version) {
+                guard build.branch != .daily else { return }
+                await splash.load(for: build.version)
+            }
     }
 
     @ViewBuilder
     private var rowBackground: some View {
         let shape = RoundedRectangle(cornerRadius: Theme.Metrics.libraryCorner, style: .continuous)
-        // A mid-light grey until (and unless) the release's painting is in
-        // hand — a daily build has no splash of its own, and a release's art
-        // may still be downloading. The solid base also takes exactly the
-        // row's frame, so the painting on top is clipped to the card and
-        // never spills into the rows above and below.
+        // A mid-light grey until (and unless) the painting is in hand — a
+        // release's art may still be loading. The solid base also takes
+        // exactly the row's frame, so the painting on top is clipped to the
+        // card and never spills into the rows above and below.
         Theme.cardPlaceholder
             .overlay {
-                if let art = splash.image(for: build.version) {
+                if let art = splash.image(for: build) {
                     Image(nsImage: art)
                         .resizable()
                         .scaledToFill()

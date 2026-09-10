@@ -27,8 +27,8 @@ enum Theme {
     /// definition to keep in step.
     static let windowBackground = Color(nsColor: .windowBackgroundColor)
 
-    /// The card behind a build whose splash artwork isn't available — a daily
-    /// build, or a release whose painting hasn't downloaded yet.
+    /// The card behind a build whose splash artwork isn't available — a
+    /// release newer than the app, whose painting is still being fetched.
     ///
     /// A designed value rather than a semantic one: no system colour means
     /// "placeholder artwork". `NSColor`'s dynamic provider is the framework's

@@ -26,6 +26,19 @@ final class RowSplashCatalog: ObservableObject {
     @Published private var entries: [String: Entry] = [:]
     private let library = SplashLibrary()
 
+    /// The standing backdrop every daily wears, read once and kept. A daily
+    /// has no series artwork to look up — the painting belongs to a release —
+    /// and this ships inside the app, so there is nothing to fetch and no
+    /// miss to record.
+    private(set) lazy var dailyImage: NSImage? =
+        SplashLibrary.dailyArtwork.flatMap { NSImage(contentsOf: $0) }
+
+    /// What a build's card should paint: the daily backdrop for a daily, and
+    /// otherwise its own series' painting once that is in hand.
+    func image(for build: InstalledBuild) -> NSImage? {
+        build.branch == .daily ? dailyImage : image(for: build.version)
+    }
+
     /// The artwork for a version's X.Y series, if it is already in hand.
     /// Pure: no fetching, no state change, safe to call from `body`.
     func image(for version: String) -> NSImage? {

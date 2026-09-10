@@ -33,15 +33,20 @@ cp "$BIN" "$APP/Contents/MacOS/$APP_NAME"
 cp "$ICON" "$APP/Contents/Resources/AppIcon.icns"
 cp "$INFO_PLIST" "$APP/Contents/Info.plist"
 
-# SwiftPM emits declared resources — the SVG icon set — as a side-by-side
-# bundle. Bundle.module looks in the main bundle's resource path, so it has to
-# travel into the .app; without this the toolbar icons render as blank space.
-RESOURCE_BUNDLE="$ROOT/.build/$CONFIG/${APP_NAME}_${APP_NAME}.bundle"
-if [[ -d "$RESOURCE_BUNDLE" ]]; then
-    cp -R "$RESOURCE_BUNDLE" "$APP/Contents/Resources/"
-else
-    echo "  ! resource bundle not found at $RESOURCE_BUNDLE" >&2
+# SwiftPM emits each target's declared resources — the SVG icon set, the
+# splash paintings — as a side-by-side bundle. Bundle.module looks in the main
+# bundle's resource path, so every one of them has to travel into the .app;
+# without this the toolbar icons render as blank space and the cards lose
+# their artwork.
+shopt -s nullglob
+RESOURCE_BUNDLES=("$ROOT/.build/$CONFIG/"*.bundle)
+shopt -u nullglob
+if [[ ${#RESOURCE_BUNDLES[@]} -eq 0 ]]; then
+    echo "  ! no resource bundles found in $ROOT/.build/$CONFIG" >&2
 fi
+for bundle in "${RESOURCE_BUNDLES[@]}"; do
+    cp -R "$bundle" "$APP/Contents/Resources/"
+done
 
 # Ad-hoc sign so Gatekeeper stops asking on every launch.
 codesign --force --sign - "$APP" >/dev/null
