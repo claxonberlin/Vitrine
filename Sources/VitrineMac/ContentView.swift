@@ -253,7 +253,7 @@ struct LibraryPane: View {
             emptyState
         } else {
             ScrollView {
-                LazyVStack(spacing: Theme.Metrics.libraryRowGap) {
+                LazyVStack(spacing: Theme.Metrics.rowGap) {
                     ForEach(BuildBranch.allCases) { branch in
                         section(branch)
                     }

@@ -67,7 +67,7 @@ struct CataloguePane: View {
 
     private var list: some View {
         ScrollView {
-            LazyVStack(spacing: 4) {
+            LazyVStack(spacing: Theme.Metrics.rowGap) {
                 ForEach(BuildBranch.allCases) { branch in
                     section(branch)
                 }

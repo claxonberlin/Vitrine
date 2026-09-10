@@ -167,8 +167,10 @@ enum Theme {
         /// The card's corner radius — and, since a branch heading lines up
         /// with where a card's flat edge begins, that heading's indent too.
         static let libraryCorner: CGFloat = 20
-        /// Between one card and the next (a catalogue row uses 4).
-        static let libraryRowGap: CGFloat = 6
+        /// Between one card and the next, on both pages: the catalogue used
+        /// to sit its rows tighter, which made the same list read as two
+        /// different rhythms depending on which page you were on.
+        static let rowGap: CGFloat = 6
 
         static let corner: CGFloat = 12          // row / group cards
         static let iconSize: CGFloat = 16
