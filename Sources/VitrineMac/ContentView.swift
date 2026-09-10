@@ -45,7 +45,7 @@ struct ContentView: View {
             ZStack(alignment: .topTrailing) {
                 Theme.windowBackground.ignoresSafeArea()
 
-                LibraryPane(showCatalogue: $menu.catalogueShown, addBuild: $menu.addingBuild)
+                LibraryPane()
                 // Slides left to make room for the incoming page rather than
                 // staying put underneath it — see the type's own doc comment.
                 .offset(x: showingCatalogue ? -travel : 0)
@@ -245,8 +245,6 @@ extension View {
 struct LibraryPane: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
-    @Binding var showCatalogue: Bool
-    @Binding var addBuild: Bool
 
     var body: some View {
         if store.installed.isEmpty {
@@ -268,41 +266,25 @@ struct LibraryPane: View {
         }
     }
 
-    /// Nothing installed yet, and both ways out of that offered here rather
-    /// than left to be found in the toolbar.
+    /// Nothing installed yet, said in one line on the window's own
+    /// background.
     ///
-    /// On its own card, like everything else in this window: the splash
-    /// artwork behind it is a full-colour painting, and plain text laid
-    /// straight on one is a coin toss between legible and invisible depending
-    /// on which release is current.
+    /// It was a card with two buttons on it, and that was one thing too many:
+    /// a filled panel reads as an object in its own right, and both of its
+    /// buttons already sit in the title bar, a few points above where the card
+    /// was pointing. All this moment has to do is send you to the toolbar, so
+    /// it says that and draws nothing — the catalogue's own glyph above the
+    /// line, so there is no hunting for which button is meant.
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label {
-                Text("No Builds Installed")
-            } icon: {
-                IconView(icon: .library, size: 34)
-                    .foregroundStyle(.secondary)
-            }
-        } description: {
-            Text("Download one from the catalogue, or add a Blender you already have.")
-                .frame(maxWidth: 240)
-        } actions: {
-            HStack(spacing: 10) {
-                // Stock system buttons, which bring their own hover and
-                // pressed states — nothing to add by hand here.
-                Button("Show Catalogue") { showCatalogue = true }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.catalogueAccent)
-                Button("Add Build…") { addBuild = true }
-            }
-            // The placeholder sizes its actions row to the description above
-            // it, which clips a two-button row's labels.
-            .fixedSize()
+        VStack(spacing: 12) {
+            IconView(icon: .catalogue, size: 26)
+                .foregroundStyle(.tertiary)
+            Text("Open the catalogue from the button at the top right to browse and install Blender versions.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 250)
         }
-        .fixedSize()
-        .padding(.vertical, 8)
-        .padding(.horizontal, 16)
-        .background(RowCard())
         .padding(Theme.Metrics.windowMargin)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
