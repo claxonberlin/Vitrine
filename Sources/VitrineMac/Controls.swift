@@ -150,12 +150,14 @@ struct RowProgressFill<S: Shape>: View {
     private static var washOpacity: Double { 0.16 }
 }
 
-/// The hover highlight a row inside an expanded group gets: the group paints
-/// one continuous card behind all of its children, so a child can't lift its
-/// own card the way a standalone row does — it tints the patch it occupies
-/// instead, which lands on the same colour either way.
-struct RowHoverHighlight: View {
-    var hovered: Bool
+/// What a row inside an expanded group draws behind itself: its download
+/// progress, and nothing else.
+///
+/// No hover. The group paints one continuous card behind all of its children,
+/// and lighting each child under the pointer broke that card back up into a
+/// list of separate ones — the header is the object here, and the builds
+/// inside it are its contents.
+struct RowChildFill: View {
     /// The same progress fill a standalone row's card takes, kept inside the
     /// patch this child occupies.
     var progress: RowProgress? = nil
@@ -167,10 +169,9 @@ struct RowHoverHighlight: View {
 
     var body: some View {
         shape
-            .fill(hovered ? Theme.rowHoverFill : .clear)
+            .fill(.clear)
             .overlay { if let progress { RowProgressFill(progress: progress, shape: shape) } }
             .padding(.horizontal, 3)
-            .animation(.smooth(duration: 0.15), value: hovered)
     }
 }
 

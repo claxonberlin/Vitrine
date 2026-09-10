@@ -241,10 +241,11 @@ struct RemoteRow: View {
             if drawsCard {
                 RowCard(hovered: hovered, progress: progress)
             } else {
-                RowHoverHighlight(hovered: hovered, progress: progress)
+                RowChildFill(progress: progress)
             }
         }
-        .onHover { hovered = $0 }
+        // Only a row that owns its card has anything to lift.
+        .onHover { hovered = drawsCard && $0 }
         .help(build.fileName)
     }
 

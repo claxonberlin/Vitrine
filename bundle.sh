@@ -48,6 +48,17 @@ for bundle in "${RESOURCE_BUNDLES[@]}"; do
     cp -R "$bundle" "$APP/Contents/Resources/"
 done
 
+# The menu bar's own strings, one folder per language. They go loose in
+# Resources — that is where CFBundle looks for them, and it is what makes the
+# app count as localised at all: AppKit picks the language for its standard
+# menus from the intersection of these and the user's preferred languages.
+shopt -s nullglob
+LPROJS=("$ROOT/Resources/Localizations/"*.lproj)
+shopt -u nullglob
+for lproj in "${LPROJS[@]}"; do
+    cp -R "$lproj" "$APP/Contents/Resources/"
+done
+
 # Ad-hoc sign so Gatekeeper stops asking on every launch.
 codesign --force --sign - "$APP" >/dev/null
 

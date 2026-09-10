@@ -39,6 +39,12 @@ fetched when a build is installed; the scrape survives only as the fallback
 for a series newer than the app itself. Daily builds get no painting of their
 own, so they share one blurred backdrop.
 
+The menu bar follows the system language — English, Dutch, Spanish, French,
+Italian and Portuguese, in `Resources/Localizations/`, copied into the app by
+`bundle.sh`. Declaring those in `Info.plist` is also what makes AppKit's own
+menus (File, Window, Quit) arrive translated. The rest of the interface is
+English for now.
+
 There is no settings window on either platform. The app has one setting — how
 far back to scrape the stable archive — and each front end puts it where that
 desktop would: the View menu on macOS, the header bar's menu on GNOME. The

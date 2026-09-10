@@ -1,0 +1,14 @@
+/* Vitrine — menu bar strings.
+   The rest of the interface is English for now; these are what the OS shows
+   in the menu bar, which follows the system language. */
+
+"Add Build…" = "Build toevoegen…";
+"Show Catalogue" = "Catalogus tonen";
+"Hide Catalogue" = "Catalogus verbergen";
+"Reload Catalogue" = "Catalogus herladen";
+"Oldest Version Listed" = "Oudste getoonde versie";
+"Reveal Library in %@" = "Bibliotheek tonen in %@";
+"Blender Downloads" = "Blender-downloads";
+"Daily Builds" = "Dagelijkse builds";
+"LTS Releases" = "LTS-releases";
+"Support the Blender Foundation" = "Steun de Blender Foundation";

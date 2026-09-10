@@ -90,7 +90,12 @@ struct VitrineApp: App {
                 // The library folder used to be reachable from the settings
                 // window. It is worth keeping a way in, and the menu bar is
                 // where a Mac app puts one.
-                Button("Reveal Library in Finder") {
+                // Built by hand rather than left to SwiftUI's interpolation:
+                // the file manager's name is a runtime value, and the key
+                // that reaches the strings table has to be the format string
+                // itself.
+                Button(String(format: NSLocalizedString("Reveal Library in %@", comment: ""),
+                              store.fileManagerName)) {
                     store.revealLibrary()
                 }
             }
@@ -112,6 +117,13 @@ struct VitrineApp: App {
                 }
                 Button("LTS Releases") {
                     store.openInBrowser("https://www.blender.org/download/lts/")
+                }
+                Divider()
+                // Blender is free because people pay for it. A build manager
+                // that does nothing but hand out those builds can at least
+                // point at the tin.
+                Button("Support the Blender Foundation") {
+                    store.openInBrowser("https://www.blender.org/foundation/donation-program/")
                 }
             }
         }
@@ -162,6 +174,94 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate(ignoringOtherApps: true)
+        // SwiftUI rebuilds the whole menu bar whenever its commands
+        // re-evaluate, and puts Edit back every time, so this can't be done
+        // once at launch. The app tells us when it is about to update; the
+        // handler is a pair of integer comparisons unless the bar has
+        // actually changed shape.
+        menuTidyObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willUpdateNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { Self.tidyMenuBar() }
+        }
+    }
+
+    /// Kept for the lifetime of the app — see the comment where it is made.
+    private var menuTidyObserver: NSObjectProtocol?
+
+    /// Runs on every app update, because SwiftUI rebuilds the menu bar
+    /// whenever its commands re-evaluate — it re-adds Edit, and it puts
+    /// Developer back where it declared it. Each step below is a scan of a
+    /// handful of menu items and does nothing when there is nothing to do.
+
+    /// Drops the separators taking up space around nothing: a menu can't
+    /// open or close on one, and two in a row are one line too many. Removing
+    /// items leaves all three behind.
+    @MainActor
+    private static func tidySeparators(in menu: NSMenu) {
+        var previousWasSeparator = true   // treat the top edge as one
+        for item in menu.items {
+            guard item.isSeparatorItem else {
+                previousWasSeparator = false
+                continue
+            }
+            if previousWasSeparator { menu.removeItem(item) }
+            previousWasSeparator = true
+        }
+        if let last = menu.items.last, last.isSeparatorItem { menu.removeItem(last) }
+    }
+
+    /// A top-level menu carries its name on the item, on the submenu, or on
+    /// both, depending on who made it — SwiftUI's own menus leave the item
+    /// blank.
+    @MainActor
+    private static func isNamed(_ item: NSMenuItem, _ name: String) -> Bool {
+        item.title == name || item.submenu?.title == name
+    }
+
+    /// Trims the menu bar down to what this app can actually do, and puts the
+    /// debug menu where a debug menu goes.
+    ///
+    /// Everything here is matched on selectors rather than on titles, because
+    /// AppKit's own items arrive in the user's language.
+    @MainActor
+    private static func tidyMenuBar() {
+        guard let main = NSApp.mainMenu else { return }
+
+        // Edit: nothing in this window takes text — no field, no editor, no
+        // undo stack. A menu of items that can never fire is worse than no
+        // menu. Found by the one selector every Edit menu has.
+        if let edit = main.items.first(where: { item in
+            item.submenu?.items.contains { $0.action == #selector(NSText.paste(_:)) } == true
+        }) {
+            main.removeItem(edit)
+        }
+
+        // Close, and Close All with it: there is one window, closing it
+        // quits, and the app already has Quit for that. `closeAll:` has no
+        // symbol to name — it is AppKit's own, reachable only as a string.
+        let closing: Set<Selector> = [
+            #selector(NSWindow.performClose(_:)), Selector(("closeAll:"))
+        ]
+        for item in main.items {
+            guard let submenu = item.submenu else { continue }
+            for child in submenu.items
+            where child.action.map(closing.contains) == true {
+                submenu.removeItem(child)
+            }
+            tidySeparators(in: submenu)
+        }
+
+        // Developer belongs at the end of the bar, beside Help, not in the
+        // middle of the menus a user reads. Its title is ours, so matching on
+        // it is safe: it is never translated.
+        guard let developer = main.items.firstIndex(where: { Self.isNamed($0, "Developer") })
+        else { return }
+        let help = main.items.firstIndex { $0.submenu === NSApp.helpMenu } ?? main.items.count
+        guard help > developer else { return }
+        let item = main.items[developer]
+        main.removeItem(at: developer)
+        main.insertItem(item, at: help - 1)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
