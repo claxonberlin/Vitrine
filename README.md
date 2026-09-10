@@ -8,10 +8,9 @@ star the one the desktop should treat as *the* Blender.
 
 ## Interface
 
-<video src="https://github.com/claxonberlin/Vitrine/raw/main/docs/vitrine-demo.mp4" controls muted loop width="647"></video>
+![Vitrine on macOS: the catalogue floating over the library, an install, and the starred build](docs/vitrine-interface.gif)
 
-A screen recording of the macOS app: the catalogue floating over the library,
-an install, and the starred build. The file also sits at
+The same recording in full resolution, with the timeline to scrub:
 [`docs/vitrine-demo.mp4`](docs/vitrine-demo.mp4).
 
 ## Shape of the project
