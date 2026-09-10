@@ -49,6 +49,11 @@ public protocol PlatformIntegration: Sendable {
     /// Unpacks a downloaded archive into `destination`, returning the path of
     /// the runnable build — a `.app` bundle on macOS, a build directory on
     /// Linux.
+    /// Whether `extract` can report how far along it is. False where the
+    /// unpack is handed to a tool that says nothing until it finishes, and
+    /// the UI then has no fraction to draw.
+    var reportsInstallProgress: Bool { get }
+
     /// `progress` is called with the share of the build already written,
     /// as often as the platform can measure it, and never called at all where
     /// it can't.

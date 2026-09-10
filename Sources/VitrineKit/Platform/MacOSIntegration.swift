@@ -56,6 +56,9 @@ struct MacOSIntegration: PlatformIntegration {
 
     // MARK: - Install
 
+    /// The copy is watched byte by byte — see `copyApp`.
+    var reportsInstallProgress: Bool { true }
+
     func extract(archive: URL, into destination: URL,
                  progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
         let mountPoint = try await attach(archive)
@@ -257,7 +260,7 @@ struct MacOSIntegration: PlatformIntegration {
         let total = Self.size(of: appOnDMG)
         let watcher = Task.detached {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 400_000_000)
+                try? await Task.sleep(nanoseconds: 200_000_000)
                 guard !Task.isCancelled, total > 0 else { continue }
                 progress(min(1, Double(Self.size(of: dest)) / Double(total)))
             }

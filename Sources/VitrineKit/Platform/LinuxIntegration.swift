@@ -69,6 +69,9 @@ struct LinuxIntegration: PlatformIntegration {
     /// (`blender-4.2.1-linux-x64/`). We unpack into a staging folder so a
     /// malformed archive can't scatter files across the library, then move
     /// that one directory into place.
+    /// `tar` reports nothing until it exits.
+    var reportsInstallProgress: Bool { false }
+
     func extract(archive: URL, into destination: URL,
                  progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
         let fm = FileManager.default

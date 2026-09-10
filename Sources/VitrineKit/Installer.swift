@@ -74,7 +74,11 @@ public final class Installer: Sendable {
             }
         }
         defer { try? FileManager.default.removeItem(at: archiveURL) }
-        await progress(.installing(fraction: nil))
+        // Zero rather than "no idea" wherever the unpack can be watched: the
+        // row has just finished filling its download bar, and a band sweeping
+        // across it for the one beat before the first measurement arrives
+        // reads as the work starting over.
+        await progress(.installing(fraction: platform.reportsInstallProgress ? 0 : nil))
 
         let buildID = stripArchiveExtension(build.fileName)
         let destFolder = folder(for: branch).appendingPathComponent(buildID, isDirectory: true)

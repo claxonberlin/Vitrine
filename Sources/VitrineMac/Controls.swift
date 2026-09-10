@@ -94,7 +94,16 @@ struct RowProgressFill<S: Shape>: View {
             case .downloading(let fraction):
                 bar(Theme.catalogueAccent, width: width, to: fraction)
             case .installing(.some(let fraction)):
-                bar(Theme.blenderBlue, width: width, to: fraction)
+                // A wash across the whole row under the bar. Unpacking opens
+                // with a beat of mounting the disk image, where nothing has
+                // been copied yet and a bar alone would leave the row blank
+                // between the full download bar and the first bytes of this
+                // one. The wash says "installing" the moment the state
+                // changes; the bar says how far along it is.
+                ZStack(alignment: .leading) {
+                    Theme.blenderBlue.opacity(Self.washOpacity)
+                    bar(Theme.blenderBlue, width: width, to: fraction)
+                }
             case .queued:
                 Color.clear
             case .installing(.none):
@@ -135,6 +144,10 @@ struct RowProgressFill<S: Shape>: View {
     /// Strong enough to read as the row's own colour, light enough to leave
     /// the version and its tags legible on top.
     private static var inkOpacity: Double { 0.55 }
+
+    /// The ground the install bar fills over — enough to colour the row,
+    /// not enough to be mistaken for progress.
+    private static var washOpacity: Double { 0.16 }
 }
 
 /// The hover highlight a row inside an expanded group gets: the group paints
