@@ -95,22 +95,21 @@ struct InstalledRow: View {
                     if !(isLTS && build.riskId == "stable") {
                         CardChip(text: build.riskLabel)
                     }
+                    // Only a daily needs the hash, and it belongs beside the
+                    // risk it qualifies: it is what tells two builds of one
+                    // version apart, not a second date.
+                    if build.branch == .daily, let hash = build.sourceHash {
+                        CardChip(text: hash)
+                            .accessibilityLabel("Build \(hash)")
+                    }
                     if isLTS {
                         CardChip(text: "LTS")
                             .accessibilityLabel("Long-term support")
                     }
                 }
 
-                HStack(spacing: 4) {
-                    CardChip(text: dateChip)
-                        .accessibilityLabel(dateDescription)
-                    // Only a daily needs the hash: it is the one thing telling
-                    // two builds of the same version apart.
-                    if build.branch == .daily, let hash = build.sourceHash {
-                        CardChip(text: hash)
-                            .accessibilityLabel("Build \(hash)")
-                    }
-                }
+                CardChip(text: dateChip)
+                    .accessibilityLabel(dateDescription)
             }
             .padding(.vertical, Theme.Metrics.cardChipGap)
             .frame(height: Theme.Metrics.launchButtonSize.height, alignment: .leading)

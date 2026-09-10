@@ -528,8 +528,27 @@ public final class BuildStore {
         } else if let source = build.sourceURL, source == target.url {
             return nil
         }
+        // The target is already here under its own row — which is exactly
+        // what the kept rollback looks like right after an update. Offering
+        // it again would download a build the library already holds.
+        guard !dailyLibraryHolds(target, series: key, ignoring: build) else { return nil }
         guard build.hasBuildDate else { return target }
         return target.date > build.buildDate ? target : nil
+    }
+
+    /// True when some other daily of this series is already the target build,
+    /// or newer than it.
+    private func dailyLibraryHolds(_ target: RemoteBuild,
+                                   series key: String,
+                                   ignoring build: InstalledBuild) -> Bool {
+        installed.contains { other in
+            guard other.id != build.id, other.branch == .daily, !other.isCustom,
+                  Version(other.version)?.minorKey == key else { return false }
+            if let mine = other.sourceHash, let theirs = target.hash, mine == theirs {
+                return true
+            }
+            return other.hasBuildDate && other.buildDate >= target.date
+        }
     }
 
     /// How many builds a daily series keeps: tonight's, and the one it

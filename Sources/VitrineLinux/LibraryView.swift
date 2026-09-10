@@ -83,16 +83,15 @@ struct InstalledRow: View {
         if !(build.branch == .stable && build.riskId == "stable") {
             parts.append(build.riskLabel)
         }
+        // The hash rides beside the risk it qualifies: it is what tells two
+        // dailies of one version apart.
+        if build.branch == .daily, let hash = build.sourceHash { parts.append(hash) }
         if store.isLTS(build.version) { parts.append("LTS") }
         // A daily is a position on a track that moves nightly, so it reads as
-        // an age, with the hash that tells two builds of one version apart.
-        // Everything else is a dated release and says which date.
-        if build.branch == .daily {
-            parts.append(DateFormat.relative(build.buildDate))
-            if let hash = build.sourceHash { parts.append(hash) }
-        } else {
-            parts.append(DateFormat.day(build.buildDate))
-        }
+        // an age; everything else is a dated release and says which date.
+        parts.append(build.branch == .daily
+                     ? DateFormat.relative(build.buildDate)
+                     : DateFormat.day(build.buildDate))
         if let last = build.lastLaunchedAt {
             parts.append("opened \(DateFormat.relative(last))")
         }
