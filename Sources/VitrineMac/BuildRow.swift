@@ -278,11 +278,10 @@ struct CatalogueAction: View {
         HStack(spacing: Theme.Metrics.rowSpacing) {
             action
             // The same treatment the library gives a version on its Launch
-            // button — bold, condensed, open digits — only smaller, so a
-            // version reads as the same kind of thing on both pages.
+            // button — bold, open digits — only smaller and at regular
+            // width, since a catalogue row has the room the button hasn't.
             Text(label ?? build.version)
                 .font(Theme.openDigits(size: 15, weight: .bold))
-                .fontWidth(.condensed)
                 .monospacedDigit()
                 .fixedSize()
                 .accessibilityLabel("Blender \(label ?? build.version)")

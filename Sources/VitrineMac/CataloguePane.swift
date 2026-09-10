@@ -174,10 +174,10 @@ struct GroupCard: View {
             .padding(.horizontal, 5)
             .padding(.vertical, 4)
         }
-        // Bare glyphs, so the hover highlight is the only thing marking this
-        // out as a control of its own. The header behind it lights up too, so
-        // this has to read as a separate target within that.
-        .buttonStyle(.bare())
+        // No highlight of its own: the whole header already folds the group,
+        // so lighting this corner up promised a separate target that isn't
+        // one. It stays a button for the keyboard and for VoiceOver.
+        .buttonStyle(.plain)
         .help(isExpanded ? "Collapse \(group.minorKey)" : "Show every \(group.minorKey) release")
         .accessibilityLabel(isExpanded
                             ? "Collapse Blender \(group.minorKey)"
