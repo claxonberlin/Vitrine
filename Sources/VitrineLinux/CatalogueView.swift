@@ -82,8 +82,9 @@ struct SeriesRow: View {
 
     private var subtitle: String {
         var parts = ["\(group.builds.count) releases"]
-        parts.append(group.latest.riskLabel)
-        if store.isLTS(group.latest.version) { parts.append("LTS") }
+        let isLTS = store.isLTS(group.latest.version)
+        if let risk = group.latest.riskLabel(besideLTS: isLTS) { parts.append(risk) }
+        if isLTS { parts.append("LTS") }
         return parts.joined(separator: " · ")
     }
 }
@@ -125,13 +126,15 @@ struct RemoteRow: View {
 
     private var subtitle: String {
         var parts: [String] = []
+        let isLTS = store.isLTS(build.version)
         // Every catalogue row says how finished its build is, "Stable"
         // included: the heading it sits under is scrolled away half the time.
-        parts.append(build.riskLabel)
+        // Only an LTS row goes without, since its own tag says it.
+        if let risk = build.riskLabel(besideLTS: isLTS) { parts.append(risk) }
         // The hash rides beside the risk it qualifies — it is what tells the
         // daily on offer from the one already installed.
         if branch == .daily, let hash = build.hash { parts.append(hash) }
-        if store.isLTS(build.version) { parts.append("LTS") }
+        if isLTS { parts.append("LTS") }
         if build.fileSize > 0 { parts.append(ByteFormat.string(build.fileSize)) }
         // A daily reads as an age; a release says its date. Some old archive
         // entries carry neither.

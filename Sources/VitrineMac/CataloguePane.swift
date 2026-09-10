@@ -149,6 +149,8 @@ struct GroupCard: View {
         }
     }
 
+    private var isLTS: Bool { store.isLTS(group.latest.version) }
+
     private var header: some View {
         HStack(spacing: Theme.Metrics.rowSpacing) {
             // Dimmed once the group opens: every build inside now has its
@@ -158,8 +160,8 @@ struct GroupCard: View {
                 .opacity(isExpanded ? 0.4 : 1)
                 .animation(.smooth(duration: 0.2), value: isExpanded)
 
-            BadgeRow(riskLabel: group.latest.riskLabel,
-                     isLTS: store.isLTS(group.latest.version))
+            BadgeRow(riskLabel: group.latest.riskLabel(besideLTS: isLTS),
+                     isLTS: isLTS)
 
             Spacer(minLength: 4)
 

@@ -177,9 +177,13 @@ public struct RemoteBuild: Identifiable, Hashable, Codable, Sendable {
     public var riskLabel: String { riskId.capitalizedFirst }
 
     /// The risk chip a front end should draw, or nil where it would only
-    /// repeat the heading above it: everything filed under Stable is stable.
-    public func riskLabel(under branch: BuildBranch) -> String? {
-        (branch == .stable && riskId == "stable") ? nil : riskLabel
+    /// repeat the LTS chip beside it: an LTS release is stable by
+    /// definition, so "Stable · LTS" says one thing twice.
+    ///
+    /// Note this no longer defers to the heading a row sits under. A
+    /// heading scrolls away; the chip is what a row is compared on.
+    public func riskLabel(besideLTS isLTS: Bool) -> String? {
+        (isLTS && riskId == "stable") ? nil : riskLabel
     }
 }
 
@@ -238,10 +242,10 @@ public struct InstalledBuild: Identifiable, Hashable, Codable, Sendable {
     /// True when `buildDate` is the build's own date rather than a stand-in.
     public var hasBuildDate: Bool { builtAt != nil && builtAt != .distantPast }
 
-    /// The risk chip a front end should draw — nil under the Stable heading,
-    /// which already says as much. See `RemoteBuild.riskLabel(under:)`.
-    public var displayRiskLabel: String? {
-        (branch == .stable && riskId == "stable") ? nil : riskLabel
+    /// The risk chip a front end should draw. One rule for both kinds of
+    /// build — see `RemoteBuild.riskLabel(besideLTS:)`.
+    public func riskLabel(besideLTS isLTS: Bool) -> String? {
+        (isLTS && riskId == "stable") ? nil : riskLabel
     }
 
     /// Custom builds are tracked, not owned: never deleted from disk, never

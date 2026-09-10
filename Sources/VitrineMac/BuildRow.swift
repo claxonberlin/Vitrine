@@ -121,11 +121,7 @@ struct InstalledRow: View {
             chips.append(.icon(.star, id: "star", help: Self.starMeaning,
                                label: "Starred", hint: Self.starMeaning))
         }
-        // "Stable" beside "LTS" says nothing "LTS" doesn't — an LTS build is
-        // always stable branch, stable risk.
-        if !(isLTS && build.riskId == "stable") {
-            chips.append(.text(build.riskLabel))
-        }
+        if let risk = build.riskLabel(besideLTS: isLTS) { chips.append(.text(risk)) }
         // Only a daily needs the hash, and it belongs beside the risk it
         // qualifies: it is what tells two builds of one version apart, not a
         // second date.
@@ -337,16 +333,17 @@ struct CatalogueChips: View {
 
     private var tagChips: [ChipSpec] {
         var chips: [ChipSpec] = []
+        let isLTS = store.isLTS(build.version)
         // Every catalogue row says how finished its build is, "Stable"
-        // included. The heading it sits under is scrolled away half the time,
-        // and the chip is what the row is compared on.
-        chips.append(.text(build.riskLabel))
+        // included — the heading it sits under is scrolled away half the
+        // time. Only an LTS row goes without, since its own chip says it.
+        if let risk = build.riskLabel(besideLTS: isLTS) { chips.append(.text(risk)) }
         // The hash tells two dailies of one version apart, which here is the
         // difference between the build on offer and the one already installed.
         if branch == .daily, let hash = build.hash {
             chips.append(.text(hash, label: "Build \(hash)"))
         }
-        if store.isLTS(build.version) { chips.append(BadgeRow.ltsChip) }
+        if isLTS { chips.append(BadgeRow.ltsChip) }
         return chips
     }
 

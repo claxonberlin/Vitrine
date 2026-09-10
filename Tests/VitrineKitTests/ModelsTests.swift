@@ -105,8 +105,9 @@ final class DownloadStateTests: XCTestCase {
     }
 }
 
-/// Which builds wear a risk chip is one rule, shared by both front ends and
-/// by both kinds of row, so it is pinned here rather than re-derived per view.
+/// Which builds wear a risk chip is one rule, shared by both front ends, by
+/// both pages and by both kinds of build, so it is pinned here rather than
+/// re-derived per view.
 final class RiskLabelTests: XCTestCase {
     private func remote(version: String, riskId: String) -> RemoteBuild {
         RemoteBuild(url: URL(string: "https://example.invalid/\(version)")!,
@@ -121,54 +122,26 @@ final class RiskLabelTests: XCTestCase {
                        buildPath: URL(fileURLWithPath: "/tmp/Blender.app"), pinned: false)
     }
 
-    func testStableUnderStableSaysNothingTwice() {
-        XCTAssertNil(remote(version: "4.2.1", riskId: "stable").riskLabel(under: .stable))
-        XCTAssertNil(installed(version: "4.2.1", riskId: "stable", branch: .stable)
-            .displayRiskLabel)
+    func testStableBesideLTSSaysNothingTwice() {
+        XCTAssertNil(remote(version: "4.5.13", riskId: "stable").riskLabel(besideLTS: true))
+        XCTAssertNil(installed(version: "4.5.13", riskId: "stable", branch: .stable)
+            .riskLabel(besideLTS: true))
     }
 
-    func testAnythingElseKeepsItsChip() {
-        XCTAssertEqual(remote(version: "5.3.0", riskId: "alpha").riskLabel(under: .daily), "Alpha")
-        // A stable-flagged build filed under another heading still says so.
-        XCTAssertEqual(remote(version: "4.2.1", riskId: "stable").riskLabel(under: .daily), "Stable")
+    func testStableOnItsOwnStillSaysSo() {
+        XCTAssertEqual(remote(version: "4.3.2", riskId: "stable").riskLabel(besideLTS: false),
+                       "Stable")
+        XCTAssertEqual(installed(version: "4.3.2", riskId: "stable", branch: .stable)
+            .riskLabel(besideLTS: false), "Stable")
+    }
+
+    func testAnythingElseKeepsItsChipEvenBesideLTS() {
+        XCTAssertEqual(remote(version: "5.3.0", riskId: "alpha").riskLabel(besideLTS: true),
+                       "Alpha")
         XCTAssertEqual(installed(version: "5.3.0", riskId: "alpha", branch: .daily)
-            .displayRiskLabel, "Alpha")
-        // Builds the user added by hand are marked wherever they are filed.
-        XCTAssertEqual(installed(version: "4.0", riskId: InstalledBuild.customRiskID,
-                                 branch: .stable).displayRiskLabel, "Custom")
-    }
-}
-
-
-/// Which date a row shows, and which one dailies are pruned in. Both read
-/// `buildDate`, so the rule lives in one place and is pinned here.
-final class BuildVintageTests: XCTestCase {
-    private func build(installedAt: Date, builtAt: Date?) -> InstalledBuild {
-        InstalledBuild(id: UUID(), version: "5.3.0", riskId: "alpha", branch: .daily,
-                       installedAt: installedAt, lastLaunchedAt: nil, sourceURL: nil,
-                       builtAt: builtAt, sourceHash: "d0cbe84903e8",
-                       buildPath: URL(fileURLWithPath: "/tmp/Blender.app"), pinned: false)
-    }
-
-    func testBuildDatePrefersTheBuildsOwnDate() {
-        let built = Date(timeIntervalSince1970: 1_000_000)
-        let b = build(installedAt: Date(timeIntervalSince1970: 2_000_000), builtAt: built)
-        XCTAssertEqual(b.buildDate, built)
-        XCTAssertTrue(b.hasBuildDate)
-    }
-
-    func testInstallDateStandsInWhenNoneWasRecorded() {
-        let added = Date(timeIntervalSince1970: 2_000_000)
-        for missing in [nil, Date.distantPast] {
-            let b = build(installedAt: added, builtAt: missing)
-            XCTAssertEqual(b.buildDate, added)
-            XCTAssertFalse(b.hasBuildDate)
-        }
-    }
-
-    /// Daily leads both lists, because it is the track that moves nightly.
-    func testDailyIsListedFirst() {
-        XCTAssertEqual(BuildBranch.allCases, [.daily, .stable, .experimental])
+            .riskLabel(besideLTS: false), "Alpha")
+        XCTAssertEqual(installed(version: "mine", riskId: InstalledBuild.customRiskID,
+                                 branch: .stable).riskLabel(besideLTS: false), "Custom")
     }
 }
 

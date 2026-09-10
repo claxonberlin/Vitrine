@@ -80,13 +80,12 @@ struct InstalledRow: View {
     /// facts ride in the subtitle, which is where GNOME puts row detail.
     private var subtitle: String {
         var parts: [String] = []
-        if !(build.branch == .stable && build.riskId == "stable") {
-            parts.append(build.riskLabel)
-        }
+        let isLTS = store.isLTS(build.version)
+        if let risk = build.riskLabel(besideLTS: isLTS) { parts.append(risk) }
         // The hash rides beside the risk it qualifies: it is what tells two
         // dailies of one version apart.
         if build.branch == .daily, let hash = build.sourceHash { parts.append(hash) }
-        if store.isLTS(build.version) { parts.append("LTS") }
+        if isLTS { parts.append("LTS") }
         // A daily is a position on a track that moves nightly, so it reads as
         // an age; everything else is a dated release and says which date.
         parts.append(build.branch == .daily
