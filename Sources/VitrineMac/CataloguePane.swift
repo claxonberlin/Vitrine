@@ -80,9 +80,14 @@ struct CataloguePane: View {
             .animation(.smooth(duration: 0.28), value: store.expandedMinorKeys)
         }
         .scrollContentBackground(.hidden)
-        // The same soft dissolve the library uses as rows pass under the
-        // toolbar — see `LibraryPane`.
-        .softScrollEdgeCompat(for: .top)
+        // No scroll-edge effect here, where the library takes the soft
+        // dissolve. This page is narrower than the window, so the title bar
+        // has no full-width scroll view to blur against and falls back to a
+        // plain hairline — the flat line that showed under the title while
+        // the catalogue was open. Nothing is lost: these rows pass under an
+        // opaque stretch of the window's own ground, with no artwork behind
+        // them for a dissolve to reveal.
+        .scrollEdgeEffectHiddenCompat(for: .top)
     }
 
     @ViewBuilder

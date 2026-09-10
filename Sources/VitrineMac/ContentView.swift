@@ -36,7 +36,7 @@ struct ContentView: View {
     /// is — all the same fraction of whatever the window measures itself
     /// at, so the page keeps reading as "almost the whole window" at any
     /// size instead of a fixed-width strip that a wide window would dwarf.
-    private static let catalogueTravelFraction: CGFloat = 0.85
+    private static let catalogueTravelFraction: CGFloat = 0.70
 
     var body: some View {
         GeometryReader { geometry in
@@ -223,6 +223,18 @@ extension View {
     func softScrollEdgeCompat(for edges: Edge.Set) -> some View {
         if #available(macOS 26.0, *) {
             self.scrollEdgeEffectStyle(.soft, for: edges)
+        } else {
+            self
+        }
+    }
+
+    /// No scroll-edge effect at this edge — for a scroll view that doesn't
+    /// span the window, where the system falls back to a hairline rather than
+    /// a blur. Also a no-op below macOS 26, which draws neither.
+    @ViewBuilder
+    func scrollEdgeEffectHiddenCompat(for edges: Edge.Set) -> some View {
+        if #available(macOS 26.0, *) {
+            self.scrollEdgeEffectHidden(true, for: edges)
         } else {
             self
         }

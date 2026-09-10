@@ -40,10 +40,11 @@ final class StoreBridge: ObservableObject {
 /// nothing and the menu bar stands still.
 @MainActor
 final class MenuState: ObservableObject {
-    /// Which page the window is showing, remembered across launches.
-    @Published var catalogueShown: Bool {
-        didSet { UserDefaults.standard.set(catalogueShown, forKey: Self.catalogueKey) }
-    }
+    /// Which page the window is showing. Not remembered across launches: the
+    /// library is what the app is for, and reopening on the catalogue also
+    /// reopened on a title bar that hadn't settled — the hairline under the
+    /// title, which nothing but a page change would clear.
+    @Published var catalogueShown = false
     /// Raised to put the window's "add a build you already have" dialog up.
     @Published var addingBuild = false
 
@@ -53,11 +54,8 @@ final class MenuState: ObservableObject {
     private let store: BuildStore
     private var token: ObservationToken?
 
-    private static let catalogueKey = "showingCatalogue"
-
     init(store: BuildStore) {
         self.store = store
-        self.catalogueShown = UserDefaults.standard.bool(forKey: Self.catalogueKey)
         self.minVersion = store.minVersionString
         token = store.observeChanges { [weak self] in self?.mirrorStore() }
     }
