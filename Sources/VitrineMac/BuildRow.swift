@@ -85,31 +85,8 @@ struct InstalledRow: View {
             // the gap from the bottom chip to its bottom are all the same
             // `cardChipGap` — 2·chipHeight + 3·gap == the button's height.
             VStack(alignment: .leading, spacing: Theme.Metrics.cardChipGap) {
-                HStack(spacing: 4) {
-                    if build.pinned {
-                        CardStarChip()
-                    }
-                    let isLTS = store.isLTS(build.version)
-                    // "Stable" beside "LTS" says nothing "LTS" doesn't — an
-                    // LTS build is always stable branch, stable risk.
-                    if !(isLTS && build.riskId == "stable") {
-                        CardChip(text: build.riskLabel)
-                    }
-                    // Only a daily needs the hash, and it belongs beside the
-                    // risk it qualifies: it is what tells two builds of one
-                    // version apart, not a second date.
-                    if build.branch == .daily, let hash = build.sourceHash {
-                        CardChip(text: hash)
-                            .accessibilityLabel("Build \(hash)")
-                    }
-                    if isLTS {
-                        CardChip(text: "LTS")
-                            .accessibilityLabel("Long-term support")
-                    }
-                }
-
-                CardChip(text: dateChip)
-                    .accessibilityLabel(dateDescription)
+                ChipLine(chips: tagChips)
+                ChipLine(chips: [.text(dateChip, label: dateDescription)])
             }
             .padding(.vertical, Theme.Metrics.cardChipGap)
             .frame(height: Theme.Metrics.launchButtonSize.height, alignment: .leading)
@@ -132,6 +109,35 @@ struct InstalledRow: View {
             }
         }
     }
+
+    /// The card's top line: what this build is, most important first — the
+    /// star, then how finished it is, then which build it actually is, then
+    /// whether its series is supported. Dropped from the end when the row
+    /// runs out of width, so the star is the last thing to go.
+    private var tagChips: [ChipSpec] {
+        let isLTS = store.isLTS(build.version)
+        var chips: [ChipSpec] = []
+        if build.pinned {
+            chips.append(.icon(.star, id: "star", help: Self.starMeaning,
+                               label: "Starred", hint: Self.starMeaning))
+        }
+        // "Stable" beside "LTS" says nothing "LTS" doesn't — an LTS build is
+        // always stable branch, stable risk.
+        if !(isLTS && build.riskId == "stable") {
+            chips.append(.text(build.riskLabel))
+        }
+        // Only a daily needs the hash, and it belongs beside the risk it
+        // qualifies: it is what tells two builds of one version apart, not a
+        // second date.
+        if build.branch == .daily, let hash = build.sourceHash {
+            chips.append(.text(hash, label: "Build \(hash)"))
+        }
+        if isLTS { chips.append(BadgeRow.ltsChip) }
+        return chips
+    }
+
+    private static let starMeaning =
+        "Starred — opens .blend files, and puts `blender` on your PATH"
 
     /// A daily is a position on a moving track, so it reads as an age — a
     /// build from three days ago is three days behind. Everything else is a
@@ -312,33 +318,13 @@ struct CatalogueChips: View {
     let build: RemoteBuild
     let branch: BuildBranch
 
-    private static let ltsMeaning = "Long-term support — two years of bug-fix releases"
-
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Metrics.rowChipGap) {
-            if hasTags {
-                HStack(spacing: 4) {
-                    if let risk = build.riskLabel(under: branch) {
-                        CardChip(text: risk)
-                    }
-                    // The hash tells two dailies of one version apart, which
-                    // in the catalogue is the difference between the build on
-                    // offer and the one already installed.
-                    if branch == .daily, let hash = build.hash {
-                        CardChip(text: hash)
-                            .accessibilityLabel("Build \(hash)")
-                    }
-                    if isLTS {
-                        CardChip(text: "LTS")
-                            .help(Self.ltsMeaning)
-                            .accessibilityLabel("Long-term support")
-                            .accessibilityHint(Self.ltsMeaning)
-                    }
-                }
+            if !tagChips.isEmpty {
+                ChipLine(chips: tagChips)
             }
             if let date {
-                CardChip(text: date)
-                    .accessibilityLabel(dateDescription)
+                ChipLine(chips: [.text(date, label: dateDescription)])
             }
         }
         .padding(.vertical, Theme.Metrics.rowChipGap)
@@ -348,11 +334,16 @@ struct CatalogueChips: View {
         .layoutPriority(-1)
     }
 
-    private var isLTS: Bool { store.isLTS(build.version) }
-
-    private var hasTags: Bool {
-        build.riskLabel(under: branch) != nil || isLTS
-            || (branch == .daily && build.hash != nil)
+    private var tagChips: [ChipSpec] {
+        var chips: [ChipSpec] = []
+        if let risk = build.riskLabel(under: branch) { chips.append(.text(risk)) }
+        // The hash tells two dailies of one version apart, which here is the
+        // difference between the build on offer and the one already installed.
+        if branch == .daily, let hash = build.hash {
+            chips.append(.text(hash, label: "Build \(hash)"))
+        }
+        if store.isLTS(build.version) { chips.append(BadgeRow.ltsChip) }
+        return chips
     }
 
     /// A daily reads as an age — how far behind tonight's build this one is.
@@ -463,8 +454,10 @@ struct CardChip: View {
         Text(text)
             .font(Theme.openDigits(size: 12, weight: .semibold).smallCaps())
             .fontWidth(.condensed)
+            // Never squeezed to fit: a chip that doesn't fit is dropped by
+            // the line that holds it. See `ChipLine`.
             .lineLimit(1)
-            .minimumScaleFactor(0.6)
+            .fixedSize()
             // Semantic, so it inverts with the material behind it in dark
             // appearance instead of staying ink on a now-dark chip.
             .foregroundStyle(.secondary)
@@ -479,24 +472,21 @@ struct CardChip: View {
     }
 }
 
-/// The starred build's own chip: the same box every tag wears, with the
-/// star in place of a word. It leads the row's tags rather than joining
-/// them, since it says something about this build's standing in the library
-/// rather than about the build itself.
-private struct CardStarChip: View {
-    private static let meaning = "Starred — opens .blend files, and puts `blender` on your PATH"
+/// A chip with a glyph in place of a word — the starred build's is the one
+/// that uses it. It leads the line rather than joining it, since it says
+/// something about this build's standing in the library rather than about
+/// the build itself.
+struct CardIconChip: View {
+    let icon: Icon
 
     var body: some View {
-        IconView(icon: .star, size: 12)
+        IconView(icon: icon, size: 12)
             .foregroundStyle(.secondary)
             .cardChipBackground()
-            .help(Self.meaning)
-            .accessibilityLabel("Starred")
-            .accessibilityHint(Self.meaning)
     }
 }
 
-private extension View {
+extension View {
     /// The chip itself: a small-radius rectangle of `.thickMaterial` hugging
     /// whatever it holds, at the one chip height.
     func cardChipBackground() -> some View {

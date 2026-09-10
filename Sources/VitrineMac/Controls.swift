@@ -468,33 +468,140 @@ struct UpdateButton: View {
     }
 }
 
-/// The chips beside a version: how finished the build is, and whether its
-/// series is long-term support.
+/// One chip's worth of content, so a line of them can be measured, kept or
+/// dropped as a list instead of as hand-written view branches.
+struct ChipSpec: Identifiable {
+    enum Content {
+        case text(String)
+        case icon(Icon)
+    }
+
+    let id: String
+    let content: Content
+    var help: String? = nil
+    var label: String? = nil
+    var hint: String? = nil
+
+    static func text(_ text: String, help: String? = nil,
+                     label: String? = nil, hint: String? = nil) -> ChipSpec {
+        ChipSpec(id: text, content: .text(text), help: help, label: label, hint: hint)
+    }
+
+    static func icon(_ icon: Icon, id: String, help: String? = nil,
+                     label: String? = nil, hint: String? = nil) -> ChipSpec {
+        ChipSpec(id: id, content: .icon(icon), help: help, label: label, hint: hint)
+    }
+}
+
+/// A line of chips that never squeezes one to fit.
+///
+/// Chips are dropped from the end until the line fits the width it is given,
+/// and a "…" chip stands where the dropped ones were. The old behaviour
+/// scaled the text down instead, which turned a tag into a smudge at exactly
+/// the width where the row was already tight — and said nothing about the
+/// fact that something had been left out.
+struct ChipLine: View {
+    let chips: [ChipSpec]
+
+    var body: some View {
+        // Candidates are offered longest first and the first that fits wins;
+        // `fixedSize` is what makes each one report the width it actually
+        // wants rather than accepting a squeeze.
+        ViewThatFits(in: .horizontal) {
+            line(keeping: chips.count)
+            line(keeping: chips.count - 1)
+            line(keeping: chips.count - 2)
+            line(keeping: chips.count - 3)
+            line(keeping: 0)
+        }
+    }
+
+    @ViewBuilder
+    private func line(keeping count: Int) -> some View {
+        let kept = Array(chips.prefix(max(0, count)))
+        HStack(spacing: 4) {
+            ForEach(kept) { Chip(spec: $0) }
+            if kept.count < chips.count {
+                CardChip(text: "…")
+                    .accessibilityLabel("More tags than fit")
+            }
+        }
+        .fixedSize()
+    }
+}
+
+/// A chip drawn from its spec — the same box either way, a word or a glyph
+/// inside it.
+struct Chip: View {
+    let spec: ChipSpec
+
+    var body: some View {
+        // Each modifier only where the spec asks for it: an empty string is
+        // not "no label", it is a label of nothing, and it would silence the
+        // chip's own text for VoiceOver.
+        content
+            .modifier(OptionalHelp(text: spec.help))
+            .modifier(OptionalAccessibility(label: spec.label, hint: spec.hint))
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch spec.content {
+        case .text(let text): CardChip(text: text)
+        case .icon(let icon): CardIconChip(icon: icon)
+        }
+    }
+}
+
+private struct OptionalHelp: ViewModifier {
+    let text: String?
+
+    func body(content: Content) -> some View {
+        if let text { content.help(text) } else { content }
+    }
+}
+
+private struct OptionalAccessibility: ViewModifier {
+    let label: String?
+    let hint: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch (label, hint) {
+        case (let label?, let hint?):
+            content.accessibilityLabel(label).accessibilityHint(hint)
+        case (let label?, nil):
+            content.accessibilityLabel(label)
+        case (nil, let hint?):
+            content.accessibilityHint(hint)
+        case (nil, nil):
+            content
+        }
+    }
+}
+
+/// The chips beside a version in the catalogue: how finished the build is,
+/// and whether its series is long-term support.
 ///
 /// The library's own chips, in the library's own style — one row of them,
-/// since a catalogue row has a single line to spend and no "added" date to
-/// put on a second one.
+/// since a group header stands for a whole series rather than for the one
+/// build a date or a hash would describe.
 struct BadgeRow: View {
     let riskLabel: String?
     let isLTS: Bool
 
+    static let ltsMeaning = "Long-term support — two years of bug-fix releases"
+
+    /// The LTS chip, spelled once for every line that carries one.
+    static var ltsChip: ChipSpec {
+        .text("LTS", help: ltsMeaning, label: "Long-term support", hint: ltsMeaning)
+    }
+
     var body: some View {
-        HStack(spacing: 4) {
-            if let riskLabel {
-                CardChip(text: riskLabel)
-            }
-            if isLTS {
-                CardChip(text: "LTS")
-                    .help(Self.ltsMeaning)
-                    .accessibilityLabel("Long-term support")
-                    .accessibilityHint(Self.ltsMeaning)
-            }
-        }
+        ChipLine(chips: [riskLabel.map { ChipSpec.text($0) }, isLTS ? Self.ltsChip : nil]
+            .compactMap { $0 })
         // The chips give way before the row's fixed-size controls do, exactly
         // as they do on a library row.
         .layoutPriority(-1)
     }
-
-    private static let ltsMeaning = "Long-term support — two years of bug-fix releases"
 }
-

@@ -189,7 +189,28 @@ enum Theme {
         /// only an unusually long custom build name beats it. That one
         /// truncates.
         static let windowMinWidth: CGFloat = 380
-        static let windowMinHeight: CGFloat = 430
+
+        /// A branch heading's own height: 10pt of air above the text, the
+        /// 10pt uppercase line itself, 2pt below. Measured against the
+        /// running app rather than derived, since the line's height is a font
+        /// metric — see `SectionHeader`, which draws it.
+        static let sectionHeaderHeight: CGFloat = 25
+
+        /// The shortest the window may get: one library card, the heading
+        /// that always stands above it, and the same margin beneath it that
+        /// the cards keep from the window's sides. Anything less and a single
+        /// build can't be seen whole, which is the least the window can
+        /// usefully be.
+        ///
+        /// This measures the content under the title bar — the area
+        /// `.windowResizability(.contentMinSize)` adds the chrome back onto —
+        /// so the finished window's minimum is this plus the toolbar.
+        static var windowMinHeight: CGFloat {
+            sectionHeaderHeight + rowGap + libraryRowHeight + windowMargin
+        }
+
+        /// What the window opens at on a first launch, which is a different
+        /// question from how small it may be dragged.
         static let windowDefaultHeight: CGFloat = 560
     }
 }
