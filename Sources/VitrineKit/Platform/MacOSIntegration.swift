@@ -90,8 +90,35 @@ struct MacOSIntegration: PlatformIntegration {
         return version
     }
 
+    /// Hands the launch to `/usr/bin/open` rather than calling `NSWorkspace`
+    /// directly, and the detour is the whole point.
+    ///
+    /// Blender writes inside its own bundle as it starts — its embedded Python
+    /// drops `__pycache__` folders next to the scripts it imports. macOS reads
+    /// that as one app modifying another app's bundle, and bills it to whoever
+    /// is *responsible* for the process. Launch Blender from within Vitrine and
+    /// that is Vitrine, so the system asks for App Management (Privacy &
+    /// Security ▸ App Management) on Blender's behalf. An ad-hoc signed build
+    /// is never even prompted — TCC records a silent denial and leaves a fresh,
+    /// switched-off entry in that pane after every rebuild.
+    ///
+    /// `open` breaks the chain: LaunchServices starts Blender on its own
+    /// account, so Blender answers for its own writes and Vitrine is never
+    /// asked. Nothing is given up by it — the launch always succeeded anyway,
+    /// with only the bytecode cache going unwritten.
     func launch(_ buildPath: URL) throws {
-        NSWorkspace.shared.open(buildPath)
+        let launcher = Process()
+        launcher.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        launcher.arguments = ["-a", buildPath.path]
+        launcher.standardOutput = FileHandle.nullDevice
+        launcher.standardError = FileHandle.nullDevice
+        try launcher.run()
+        // Returns as soon as LaunchServices has taken the request; the Blender
+        // it starts outlives both this call and Vitrine itself.
+        launcher.waitUntilExit()
+        guard launcher.terminationStatus == 0 else {
+            throw LaunchError.couldNotLaunch(buildPath.lastPathComponent)
+        }
     }
 
     func reveal(_ url: URL) async {

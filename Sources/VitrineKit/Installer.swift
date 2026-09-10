@@ -46,6 +46,17 @@ public enum InstallError: LocalizedError {
     }
 }
 
+public enum LaunchError: LocalizedError {
+    case couldNotLaunch(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .couldNotLaunch(let name):
+            return "Could not launch \(name)"
+        }
+    }
+}
+
 /// Download-and-unpack pipeline plus library bookkeeping. Everything here is
 /// platform-neutral; the two steps that differ per OS — unpacking an archive
 /// and recognising an installed build — are delegated to `PlatformIntegration`.
