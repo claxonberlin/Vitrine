@@ -218,9 +218,10 @@ struct RowMenu<Actions: View>: View {
                 .frame(width: Self.diameter, height: Self.diameter)
         }
         .menuStyle(.button)
-        // The well is light in light appearance and dark in dark, so the
-        // highlight has to be semantic to show up on either.
-        .buttonStyle(.disc(hoverInk: Hover.onSurface))
+        // The disc is light in light appearance and dark in dark, so the
+        // highlight turns with it — as flat numbers, for the same reason the
+        // disc and glyph are flat. See `Hover.onGlass(_:)`.
+        .buttonStyle(.disc(hoverInk: Hover.onGlass(scheme)))
         .menuIndicator(.hidden)
         .fixedSize()
         .cardGlass(tint: Theme.cardButtonFill(scheme), in: Circle())

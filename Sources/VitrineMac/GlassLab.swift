@@ -255,7 +255,7 @@ struct GlassLab: View {
                                height: Theme.Metrics.actionHeight)
                 }
                 .menuStyle(.button)
-                .buttonStyle(.disc(hoverInk: Hover.onSurface))
+                .buttonStyle(.disc(hoverInk: Hover.onGlass(scheme)))
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .glassEffect(.regular.tint(Theme.cardButtonFill(scheme).opacity(tintOpacity)),

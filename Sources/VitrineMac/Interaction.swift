@@ -21,6 +21,18 @@ enum Hover {
     /// the control as well as its highlight: at rest there is nothing there.
     static let onSurface = Color.primary.opacity(0.12)
 
+    /// The same lift, for a control that sits inside a glass shape.
+    ///
+    /// Flat numbers picked by the window's scheme, because `onSurface` is
+    /// `Color.primary` and every dynamic colour inside glass is resolved
+    /// under the material's own vibrant appearance — which over a dark card
+    /// comes back light. That put a white veil on a white disc: a hover state
+    /// that was simply invisible on the two rows with the darkest paintings.
+    /// See `Theme.cardButtonFill(_:)` for the same trap in the disc itself.
+    static func onGlass(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(white: 1).opacity(0.16) : Color(white: 0).opacity(0.10)
+    }
+
     /// Lifted while the control is held down, over whichever hover ink it
     /// uses. Dark either way, so a press reads as sinking rather than as more
     /// hover.
