@@ -96,7 +96,7 @@ enum Theme {
         /// The library row's Launch button. Its height also sets how tall the
         /// date/tag chip stack beside it stands, so the two line up top and
         /// bottom.
-        static let launchButtonSize = CGSize(width: 120, height: 46)
+        static let launchButtonSize = CGSize(width: 110, height: 46)
 
         /// One date/tag chip's height, and the gap repeated four ways around
         /// the two-chip stack: above the top chip, between the chips, below
@@ -132,30 +132,32 @@ enum Theme {
 
         static var rowHeight: CGFloat { actionHeight + rowInset * 2 }
 
-        /// A library card is built around its Launch button: the pill is the
+        // MARK: - The library card
+        //
+        // Its own design, not a catalogue row at a larger scale. It used to
+        // be exactly that: every measure below was the catalogue's own
+        // multiplied by 1.6, which is why they used to land on odd fractions
+        // of a point — 9.6, 12.8, 19.2 — and why a change to a catalogue
+        // button moved the splash artwork. The two lists share a vocabulary,
+        // not a geometry, so these are chosen rather than derived, and they
+        // are whole points because a designed value has no reason not to be.
+
+        /// The margin above and below the Launch pill. That pill is the
         /// tallest thing in the row and the one the card exists to carry, so
-        /// the row is that pill plus an even margin above and below it.
-        ///
-        /// Deliberately not derived from a catalogue row. It used to be, and
-        /// that made every library card change height whenever a catalogue
-        /// button did — the two lists share a vocabulary, not a size, and
-        /// nothing about a download button should reach the splash artwork.
-        static let libraryRowPadding: CGFloat = 12
+        /// the two together are the whole of the card's height.
+        static let libraryRowPadding: CGFloat = 14
         static var libraryRowHeight: CGFloat {
             launchButtonSize.height + libraryRowPadding * 2
         }
-
-        /// A library card keeps a catalogue row's *proportions* at 1.6× the
-        /// size — its inner margin, its corner radius, the gap to the next
-        /// row — so the bigger card reads as the same kind of object rather
-        /// than a catalogue row with its content floating in slack space.
-        /// Its height is not one of them; see `libraryRowHeight` above.
-        static let libraryRowScale: CGFloat = 1.6
-        static var libraryRowInset: CGFloat { rowInset * libraryRowScale }
-        static var libraryRowSpacing: CGFloat { rowSpacing * libraryRowScale }
-        static var libraryCorner: CGFloat { corner * libraryRowScale }
-        /// The gap between one library row and the next (catalogue uses 4).
-        static var libraryRowGap: CGFloat { (4 * libraryRowScale).rounded() }
+        /// From the card's edge to the controls inside it.
+        static let libraryRowInset: CGFloat = 10
+        /// Between one control in a row and the next.
+        static let libraryRowSpacing: CGFloat = 12
+        /// The card's corner radius — and, since a branch heading lines up
+        /// with where a card's flat edge begins, that heading's indent too.
+        static let libraryCorner: CGFloat = 20
+        /// Between one card and the next (a catalogue row uses 4).
+        static let libraryRowGap: CGFloat = 6
 
         static let corner: CGFloat = 12          // row / group cards
         static let iconSize: CGFloat = 16
