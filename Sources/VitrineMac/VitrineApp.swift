@@ -94,6 +94,15 @@ struct VitrineApp: App {
                     store.revealLibrary()
                 }
             }
+            #if DEBUG
+            CommandMenu("Developer") {
+                // A specimen sheet for glass treatments, over the picture a
+                // daily card wears — see `GlassLab`. Debug builds only.
+                Button("Glass Lab") { GlassLabWindow.show() }
+                    .disabled(!GlassLabWindow.isAvailable)
+                    .keyboardShortcut("g", modifiers: [.command, .control])
+            }
+            #endif
             CommandMenu("Blender") {
                 Button("Blender Downloads") {
                     store.openInBrowser("https://www.blender.org/download/")
@@ -237,3 +246,36 @@ final class FrameKeeper {
         return frame
     }
 }
+
+#if DEBUG
+/// Opens the glass specimen sheet in a window of its own.
+///
+/// An AppKit window rather than a second SwiftUI `Window` scene: the sheet is
+/// a debug tool, and a scene would put its state, its restoration and its
+/// menu items into the shipping app's scene graph for the sake of something
+/// no user ever opens.
+@MainActor
+enum GlassLabWindow {
+    private static var window: NSWindow?
+
+    static var isAvailable: Bool {
+        if #available(macOS 26.0, *) { true } else { false }
+    }
+
+    static func show() {
+        guard #available(macOS 26.0, *) else { return }
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+        let hosted = NSHostingController(rootView: GlassLab())
+        let window = NSWindow(contentViewController: hosted)
+        window.title = "Glass Lab"
+        window.setContentSize(NSSize(width: 900, height: 620))
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        Self.window = window
+    }
+}
+#endif
