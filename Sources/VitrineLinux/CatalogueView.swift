@@ -101,7 +101,7 @@ struct RemoteRow: View {
                 CatalogueAction(build: build, branch: branch)
             }
             .suffix {
-                if case .downloading(let received, let total, _) = store.downloadState(build.id) {
+                if case .downloading(let received, let total) = store.downloadState(build.id) {
                     let fraction = total > 0 ? min(1.0, Double(received) / Double(total)) : 0
                     VStack {
                         ProgressBar(value: fraction, total: 1)

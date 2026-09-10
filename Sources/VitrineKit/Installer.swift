@@ -73,8 +73,7 @@ public final class Installer: Sendable {
 
         let archiveURL = try await downloads.download(build.url, id: build.id) { p in
             Task { @MainActor in
-                progress(.downloading(received: p.received, total: p.total,
-                                      bytesPerSecond: p.bytesPerSecond))
+                progress(.downloading(received: p.received, total: p.total))
             }
         }
         defer { try? FileManager.default.removeItem(at: archiveURL) }

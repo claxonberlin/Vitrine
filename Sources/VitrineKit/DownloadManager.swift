@@ -3,14 +3,13 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Streams a file with `URLSessionDownloadTask`, surfacing progress, speed
-/// and cancel without iterating bytes one by one (the byte-stream approach
+/// Streams a file with `URLSessionDownloadTask`, surfacing progress and
+/// cancel without iterating bytes one by one (the byte-stream approach
 /// lost ~99% of throughput because every byte hopped through the executor).
 public final class DownloadManager: @unchecked Sendable {
     public struct Progress: Sendable {
         public let received: Int64
         public let total: Int64
-        public let bytesPerSecond: Double
     }
 
     public enum Failure: Error, LocalizedError {
@@ -84,13 +83,8 @@ public final class DownloadManager: @unchecked Sendable {
         private var continuation: CheckedContinuation<URL, Error>?
         private let lock = NSLock()
         let progressHandler: (Progress) -> Void
-        // Sliding-window EMA for speed: instantaneous bytes-per-second is
-        // jittery on fast networks; this smooths it out for display.
-        // Sample/emit state is only touched from the session's serial
-        // delegate queue, so it needs no locking.
-        private var lastSampleTime: Date?
-        private var lastSampleBytes: Int64 = 0
-        private var smoothedBPS: Double = 0
+        // Only touched from the session's serial delegate queue, so it needs
+        // no locking.
         private var lastEmitTime: Date = .distantPast
 
         init(progress: @escaping (Progress) -> Void) {
@@ -109,19 +103,6 @@ public final class DownloadManager: @unchecked Sendable {
                         totalBytesWritten: Int64,
                         totalBytesExpectedToWrite: Int64) {
             let now = Date()
-            if let last = lastSampleTime {
-                let dt = now.timeIntervalSince(last)
-                if dt >= 0.25 {
-                    let dBytes = Double(totalBytesWritten - lastSampleBytes)
-                    let inst = dBytes / dt
-                    smoothedBPS = smoothedBPS == 0 ? inst : (0.7 * smoothedBPS + 0.3 * inst)
-                    lastSampleTime = now
-                    lastSampleBytes = totalBytesWritten
-                }
-            } else {
-                lastSampleTime = now
-                lastSampleBytes = totalBytesWritten
-            }
             // Forward at most ~10 updates/s. didWriteData can fire hundreds
             // of times per second on a fast link, and each forward becomes a
             // main-actor hop plus a row re-render.
@@ -129,8 +110,7 @@ public final class DownloadManager: @unchecked Sendable {
             lastEmitTime = now
             progressHandler(Progress(
                 received: totalBytesWritten,
-                total: max(totalBytesExpectedToWrite, totalBytesWritten),
-                bytesPerSecond: smoothedBPS
+                total: max(totalBytesExpectedToWrite, totalBytesWritten)
             ))
         }
 

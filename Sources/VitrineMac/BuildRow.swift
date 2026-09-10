@@ -246,7 +246,7 @@ struct RemoteRow: View {
     /// `RowProgressFill`.
     private var progress: RowProgress? {
         switch store.downloadState(build.id) {
-        case .downloading(let received, let total, _):
+        case .downloading(let received, let total):
             return .downloading(total > 0 ? Double(received) / Double(total) : 0)
         case .installing(let fraction):
             return .installing(fraction)
@@ -260,7 +260,7 @@ struct RemoteRow: View {
     @ViewBuilder
     private var trailing: some View {
         switch store.downloadState(build.id) {
-        case .downloading(let received, let total, _):
+        case .downloading(let received, let total):
             let fraction = total > 0 ? min(1.0, Double(received) / Double(total)) : 0
             // Just the word. The card behind this is the progress bar now, and
             // how far along it is is the one thing it already says.

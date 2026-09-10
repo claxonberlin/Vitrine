@@ -138,7 +138,7 @@ struct GroupCard: View {
 
     private var latestProgress: RowProgress? {
         switch store.downloadState(group.latest.id) {
-        case .downloading(let received, let total, _):
+        case .downloading(let received, let total):
             return .downloading(total > 0 ? Double(received) / Double(total) : 0)
         case .installing(let fraction):
             return .installing(fraction)
