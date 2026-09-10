@@ -275,7 +275,10 @@ struct CatalogueAction: View {
     /// installed row: a round action, then the version it acts on, instead
     /// of the version living inside the button's own label.
     var body: some View {
-        HStack(spacing: Theme.Metrics.rowSpacing) {
+        // The library's gap, not the catalogue's own: this pair is the same
+        // pair a library row opens with — a round action and the version it
+        // acts on — so it stands the same distance apart on both pages.
+        HStack(spacing: Theme.Metrics.libraryRowSpacing) {
             action
             // The same treatment the library gives a version on its Launch
             // button — bold, open digits — only smaller and at regular
