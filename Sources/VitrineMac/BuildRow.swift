@@ -320,8 +320,8 @@ struct CatalogueChips: View {
             if !tagChips.isEmpty {
                 ChipLine(chips: tagChips)
             }
-            if let date {
-                ChipLine(chips: [.text(date, label: dateDescription)])
+            if !secondLine.isEmpty {
+                ChipLine(chips: secondLine)
             }
         }
         .padding(.vertical, Theme.Metrics.rowChipGap)
@@ -338,23 +338,23 @@ struct CatalogueChips: View {
         // included — the heading it sits under is scrolled away half the
         // time. Only an LTS row goes without, since its own chip says it.
         if let risk = build.riskLabel(besideLTS: isLTS) { chips.append(.text(risk)) }
-        // The hash tells two dailies of one version apart, which here is the
-        // difference between the build on offer and the one already installed.
-        if branch == .daily, let hash = build.hash {
-            chips.append(.text(hash, label: "Build \(hash)"))
-        }
         if isLTS { chips.append(BadgeRow.ltsChip) }
         return chips
     }
 
-    /// A daily reads as the day it came from; everything else says its
-    /// date. The archive publishes no date for some old releases, and those
-    /// simply go without.
-    private var date: String? {
-        guard build.date != .distantPast else { return nil }
-        return branch == .daily
-            ? DateFormat.recentDay(build.date)
-            : DateFormat.day(build.date)
+    /// Under the row's tags: which build this actually is.
+    ///
+    /// For a daily that is the hash, and only the hash — the catalogue lists
+    /// one daily per series, tonight's, so a date under it would say what
+    /// the heading already does. Every other row says the date it was
+    /// released, which is how one release is told from another.
+    private var secondLine: [ChipSpec] {
+        if branch == .daily {
+            guard let hash = build.hash else { return [] }
+            return [.text(hash, label: "Build \(hash)")]
+        }
+        guard build.date != .distantPast else { return [] }
+        return [.text(DateFormat.day(build.date), label: dateDescription)]
     }
 
     private var dateDescription: String { "Built \(DateFormat.day(build.date))" }

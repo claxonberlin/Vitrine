@@ -136,12 +136,11 @@ struct RemoteRow: View {
         if branch == .daily, let hash = build.hash { parts.append(hash) }
         if isLTS { parts.append("LTS") }
         if build.fileSize > 0 { parts.append(ByteFormat.string(build.fileSize)) }
-        // A daily reads as an age; a release says its date. Some old archive
-        // entries carry neither.
-        if build.date != .distantPast {
-            parts.append(branch == .daily
-                         ? DateFormat.recentDay(build.date)
-                         : DateFormat.day(build.date))
+        // A release says the date it came out; a daily says nothing, since
+        // the catalogue lists one of those per series and the heading above
+        // it already says which night it is from.
+        if branch != .daily, build.date != .distantPast {
+            parts.append(DateFormat.day(build.date))
         }
         if case .failed(let message) = store.downloadState(build.id) {
             parts.append(message)
