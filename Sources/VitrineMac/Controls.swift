@@ -258,64 +258,16 @@ struct PillButton: View {
             .accessibilityLabel(help ?? title)
     }
 
-    @ViewBuilder
     private var core: some View {
-        if #available(macOS 26.0, *) {
-            // Real glass, filled with the action's own colour — the system
-            // picks a legible label colour for whatever tint it's given,
-            // which is the entire point of reaching for `.glassProminent`
-            // instead of hand-mixing a foreground colour ourselves.
-            //
-            // Sizing a glass button is measured, not declared: a `.frame`
-            // *outside* the button only proposes a box the button centres
-            // itself within — it does not make the visible glass that
-            // size — while a `.frame` on the label gets padded back out by
-            // the style's own chrome. `Theme.Metrics.glassPillPadding` is
-            // that padding, measured directly, so the label is sized to land
-            // on exactly `pillWidth`×`actionHeight` once the chrome is added
-            // back on top of it.
-            Button(action: action) {
-                label(width: Theme.Metrics.pillWidth - Theme.Metrics.glassPillPadding.width,
-                      height: Theme.Metrics.actionHeight - Theme.Metrics.glassPillPadding.height)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(tint)
-            .controlSize(.regular)
-            .buttonBorderShape(.capsule)
-            .buttonSizing(.fitted)
-            // Prominent glass barely moves under the pointer on its own —
-            // see `hoverHighlight`.
-            .hoverHighlight(in: Capsule(style: .continuous))
-        } else {
-            LegacyPillButton(tint: tint, action: action) {
-                label(width: Theme.Metrics.pillWidth, height: Theme.Metrics.actionHeight)
-            }
-        }
-    }
-
-    private func label(width: CGFloat, height: CGFloat) -> some View {
-        Text(title)
-            .font(.system(size: 12, weight: .semibold))
-            .frame(width: width, height: height)
-    }
-}
-
-/// The pre-26 pill: a hand-filled capsule, since there's no real glass to
-/// reach for below macOS 26. Hover and press come from the same shared style
-/// the rest of the app's hand-drawn controls use, so the two eras of the UI
-/// respond identically.
-private struct LegacyPillButton<Label: View>: View {
-    let tint: Color
-    let action: () -> Void
-    @ViewBuilder let label: () -> Label
-
-    var body: some View {
         Button(action: action) {
-            label()
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                // Stated, like every other label on a card button.
                 .foregroundStyle(.white)
-                .background(Capsule(style: .continuous).fill(tint))
+                .frame(width: Theme.Metrics.pillWidth, height: Theme.Metrics.actionHeight)
         }
         .buttonStyle(.pill())
+        .cardGlass(tint: tint, in: Capsule(style: .continuous))
     }
 }
 
@@ -342,95 +294,28 @@ struct CircleIconButton: View {
     var iconSize: CGFloat = Theme.Metrics.actionIconSize
     let action: () -> Void
 
-    var body: some View {
-        core
-            .help(hint.map { "\(label) — \($0)" } ?? label)
-            .accessibilityLabel(label)
-            .accessibilityHint(hint ?? "")
-    }
-
-    @ViewBuilder
-    private var core: some View {
-        if #available(macOS 26.0, *) {
-            // Sizing a glass button is measured, not declared — see the note
-            // on `PillButton`. `Theme.Metrics.glassCirclePadding` is the
-            // chrome's own padding, measured directly, so the icon is sized
-            // to land back on exactly `diameter` once that padding is added
-            // on top of it.
-            //
-            // `.controlSize(.regular)` is what makes that padding a constant
-            // rather than a guess. A toolbar hands its items a larger control
-            // size than window content uses, and the glass chrome scales with
-            // it: the same button that pads its label by 8pt in the catalogue
-            // pads it by 20pt in the title bar. Without this the toolbar's
-            // buttons came out 40pt from a `diameter` of 28 — bigger than the
-            // 32pt controls on a row they are meant to sit below. Measured
-            // both ways, and confirmed by driving `diameter` to 60 and
-            // watching the toolbar render 72.
-            glass
-                .controlSize(.regular)
-                .buttonBorderShape(.circle)
-                .buttonSizing(.fitted)
-                .animation(.smooth(duration: 0.12), value: filled)
-        } else {
-            LegacyCircleIconButton(icon: icon, tint: tint, filled: filled,
-                                   diameter: diameter, iconSize: iconSize, action: action)
-        }
-    }
-
-    @available(macOS 26.0, *)
-    @ViewBuilder
-    private var glass: some View {
-        let label = IconView(icon: icon, size: iconSize)
-            .frame(width: diameter - Theme.Metrics.glassCirclePadding,
-                   height: diameter - Theme.Metrics.glassCirclePadding)
-        if filled {
-            Button(action: action) { label }
-                .buttonStyle(.glassProminent)
-                .tint(tint)
-                // Prominent glass has no hover response worth the name of its
-                // own — see `hoverHighlight`. The plain glass below does, so
-                // it is left alone.
-                .hoverHighlight(in: Circle())
-        } else {
-            Button(action: action) { label }
-                .buttonStyle(.glass)
-        }
-    }
-}
-
-/// The pre-26 circle: a hand-filled disc, since there's no real glass to
-/// reach for below macOS 26.
-private struct LegacyCircleIconButton: View {
-    let icon: Icon
-    let tint: Color
-    let filled: Bool
-    let diameter: CGFloat
-    let iconSize: CGFloat
-    let action: () -> Void
+    /// The window's appearance, read before any glass gets a say — see
+    /// `Theme.cardButtonFill(_:)`.
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         Button(action: action) {
             IconView(icon: icon, size: iconSize)
-                // White on a filled circle; ink on the light resting disc.
-                .foregroundStyle(filled ? .white : Color.black.opacity(0.72))
+                // White on a filled disc, the card glyph's own grey on a
+                // resting one. Flat either way: a colour left to the system
+                // is re-resolved inside the glass, against whatever the glass
+                // is lensing.
+                .foregroundStyle(filled ? Color.white : Theme.cardButtonGlyph(scheme))
                 .frame(width: diameter, height: diameter)
-                .background {
-                    Circle().fill(filled ? tint : Color.white.opacity(0.92))
-                }
-                .overlay {
-                    // Only the resting disc needs an edge: it has no colour of
-                    // its own to separate it from the artwork behind it.
-                    if !filled {
-                        Circle().strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
-                    }
-                }
-                .shadow(color: .black.opacity(filled ? 0 : 0.22), radius: 2.5, y: 1)
         }
-        // White brightens the tinted disc; the resting one is already near
-        // white, so it takes the semantic ink instead.
-        .buttonStyle(.disc(hoverInk: filled ? Hover.onTint : Hover.onSurface))
+        // White brightens a tinted disc; a resting one is near white already,
+        // so it darkens instead.
+        .buttonStyle(.disc(hoverInk: filled ? Hover.onTint : Hover.onGlass(scheme)))
+        .cardGlass(tint: filled ? tint : Theme.cardButtonFill(scheme), in: Circle())
         .animation(Hover.response, value: filled)
+        .help(hint.map { "\(label) — \($0)" } ?? label)
+        .accessibilityLabel(label)
+        .accessibilityHint(hint ?? "")
     }
 }
 

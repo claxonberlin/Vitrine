@@ -124,24 +124,6 @@ extension ButtonStyle where Self == InteractiveButtonStyle<RoundedRectangle> {
     }
 }
 
-extension View {
-    /// Hover feedback for a control whose own style doesn't provide any
-    /// visible one.
-    ///
-    /// `.buttonStyle(.glass)` does light up under the pointer, but its filled
-    /// sibling `.glassProminent` barely moves — measured against a running
-    /// macOS 26 build, a hovered prominent glass button lifts its own
-    /// luminance by about 0.003, against 0.06 for the plain one, which is
-    /// invisible on a coloured disc. Those buttons are the app's whole
-    /// catalogue vocabulary — download, remove, stop, retry — so they get the
-    /// same ink every hand-drawn control uses, laid over the system's style
-    /// rather than replacing it: the press response, the label colour and the
-    /// glass itself all stay the system's own.
-    func hoverHighlight<S: Shape>(in shape: S, ink: Color = Hover.onTint) -> some View {
-        modifier(HoverHighlight(shape: shape, ink: ink))
-    }
-}
-
 private struct HoverHighlight<S: Shape>: ViewModifier {
     let shape: S
     let ink: Color

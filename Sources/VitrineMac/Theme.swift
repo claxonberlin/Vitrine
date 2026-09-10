@@ -157,21 +157,9 @@ enum Theme {
         static let rowTrailingSpacing: CGFloat = 8
 
         /// How much bigger a real Liquid Glass button renders than the
-        /// frame given to its own label — measured directly against a
-        /// running macOS 26 build, since neither the label's frame nor an
-        /// outer `.frame` around the whole button controls this: the label
-        /// gets padded back out by the glass chrome, and an outer frame is
-        /// only a layout box the button centres itself within, not a size
-        /// it actually takes on. `PillButton`/`CircleIconButton` size their
-        /// label down by exactly this much so the finished glass button
-        /// lands back on `pillWidth`/`actionHeight`.
-        ///
-        /// Only true at `.controlSize(.regular)`, which is why both of those
-        /// set it explicitly. The chrome scales with the control size, and a
-        /// toolbar hands its items a larger one than window content uses —
-        /// the circle's padding goes from 8pt to 20pt in the title bar. Left
-        /// to the ambient value, one constant means two different sizes.
-        static let glassPillPadding = CGSize(width: 24, height: 8)
+        /// frame given to its own label, measured against a running macOS 26
+        /// build. The app's own buttons are hand-built now and don't need it;
+        /// the Glass Lab still draws system-styled specimens, which do.
         static let glassCirclePadding: CGFloat = 8
 
         static var rowHeight: CGFloat { actionHeight + rowInset * 2 }
