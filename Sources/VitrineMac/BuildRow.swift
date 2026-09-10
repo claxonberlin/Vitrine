@@ -212,13 +212,26 @@ struct RemoteRow: View {
         .frame(height: Theme.Metrics.rowHeight)
         .background {
             if drawsCard {
-                RowCard(hovered: hovered)
+                RowCard(hovered: hovered, progress: progress)
             } else {
-                RowHoverHighlight(hovered: hovered)
+                RowHoverHighlight(hovered: hovered, progress: progress)
             }
         }
         .onHover { hovered = $0 }
         .help(build.fileName)
+    }
+
+    /// What the row's own card is drawing behind all of this — see
+    /// `RowProgressFill`.
+    private var progress: RowProgress? {
+        switch store.downloadState(build.id) {
+        case .downloading(let received, let total, _):
+            return .downloading(total > 0 ? Double(received) / Double(total) : 0)
+        case .queued, .installing:
+            return .working
+        case .idle, .failed:
+            return nil
+        }
     }
 
     @ViewBuilder
@@ -227,20 +240,26 @@ struct RemoteRow: View {
         case .downloading(let received, let total, let bps):
             let fraction = total > 0 ? min(1.0, Double(received) / Double(total)) : 0
             let etaSeconds = bps > 0 && total > received ? Double(total - received) / bps : -1
-            VStack(alignment: .trailing, spacing: 3) {
-                ProgressView(value: fraction)
-                    .progressViewStyle(.linear)
-                    .controlSize(.small)
-                    .frame(width: 74)
-                Text(DurationFormat.eta(seconds: etaSeconds))
-                    .font(Theme.openDigits(size: 9))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Downloading Blender \(build.version)")
-            .accessibilityValue("\(Int(fraction * 100)) percent")
-            .transition(.opacity)
+            // Just the time left. The card behind this is the progress bar
+            // now, so a second one here would be saying it twice.
+            Text(DurationFormat.eta(seconds: etaSeconds))
+                .font(Theme.openDigits(size: 10))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Downloading Blender \(build.version)")
+                .accessibilityValue("\(Int(fraction * 100)) percent")
+                .transition(.opacity)
+        case .queued:
+            Text("Queued")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .transition(.opacity)
+        case .installing:
+            Text("Installing")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .transition(.opacity)
         case .failed(let message):
             Text(message)
                 .font(.system(size: 10))
@@ -326,8 +345,10 @@ struct CatalogueAction: View {
                     }
                 }
             case .queued, .installing:
-                ProgressView()
-                    .controlSize(.small)
+                // No spinner: the card behind the row is already sweeping.
+                // The space is held so the version doesn't jump leftward for
+                // the few seconds an install takes.
+                Color.clear
                     .frame(width: Theme.Metrics.actionHeight, height: Theme.Metrics.actionHeight)
                     .accessibilityLabel("Installing Blender \(build.version)")
             case .downloading:

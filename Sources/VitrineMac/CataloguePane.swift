@@ -129,8 +129,22 @@ struct GroupCard: View {
                 .transition(.opacity)
             }
         }
-        .background(RowCard(hovered: hovered))
+        // Folded, the card stands for the one build its header would fetch,
+        // so it carries that build's progress. Open, each child row carries
+        // its own and the card behind them all stays plain.
+        .background(RowCard(hovered: hovered, progress: isExpanded ? nil : latestProgress))
         .onHover { hovered = $0 }
+    }
+
+    private var latestProgress: RowProgress? {
+        switch store.downloadState(group.latest.id) {
+        case .downloading(let received, let total, _):
+            return .downloading(total > 0 ? Double(received) / Double(total) : 0)
+        case .queued, .installing:
+            return .working
+        case .idle, .failed:
+            return nil
+        }
     }
 
     private var header: some View {

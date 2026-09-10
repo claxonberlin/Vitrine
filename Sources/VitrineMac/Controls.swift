@@ -39,6 +39,9 @@ extension View {
 /// own light grey, on every macOS version and both appearances.
 struct RowCard: View {
     var hovered: Bool = false
+    /// Set while this row's build is coming down: the card itself is the
+    /// progress bar, so nothing else in the row has to carry one.
+    var progress: RowProgress? = nil
 
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: Theme.Metrics.corner, style: .continuous)
@@ -47,9 +50,80 @@ struct RowCard: View {
     var body: some View {
         shape
             .fill(Theme.catalogueCard)
+            .overlay { if let progress { RowProgressFill(progress: progress, shape: shape) } }
             .overlay { if hovered { shape.fill(Theme.rowHoverFill) } }
             .overlay { shape.strokeBorder(Theme.rowStroke, lineWidth: 0.5) }
             .animation(.smooth(duration: 0.15), value: hovered)
+    }
+}
+
+/// What a catalogue row's card is showing about its own build.
+enum RowProgress: Equatable {
+    /// Bytes are arriving and how far along they are is known — the bar
+    /// fills from the leading edge to that fraction.
+    case downloading(Double)
+    /// Queued, or unpacking after the download: real work with no fraction
+    /// to report, so a band sweeps the row instead of a bar filling it.
+    case working
+}
+
+/// A row's card doing duty as its own progress bar.
+///
+/// The whole card, not a small bar tucked into a corner: a catalogue row is
+/// only 36pt tall and already carries a version, its tags and a size, so a
+/// separate track was the smallest thing in the busiest part of the window.
+/// Colour says which half of the job is running — Blender's orange while the
+/// file is arriving, its blue while the build is being unpacked — and both
+/// stay under the row's own text rather than washing over it.
+struct RowProgressFill<S: Shape>: View {
+    let progress: RowProgress
+    let shape: S
+
+    /// How much of the row the sweeping band covers, and how long one pass
+    /// across it takes.
+    private static var bandWidth: CGFloat { 0.35 }
+    private static var sweepSeconds: Double { 1.4 }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            switch progress {
+            case .downloading(let fraction):
+                bar(Theme.catalogueAccent)
+                    .frame(width: width * max(0, min(1, fraction)))
+                    // Bytes land in bursts; the bar shouldn't.
+                    .animation(.smooth(duration: 0.3), value: fraction)
+            case .working:
+                // Driven off the clock rather than a repeating animation on
+                // a piece of state: the row is rebuilt whenever the store
+                // publishes, and a `repeatForever` that starts on `onAppear`
+                // was landing before layout and finishing the whole sweep in
+                // one frame — leaving the band parked off the trailing edge,
+                // which looked exactly like no progress at all.
+                TimelineView(.animation) { context in
+                    let cycle = context.date.timeIntervalSinceReferenceDate
+                        .truncatingRemainder(dividingBy: Self.sweepSeconds) / Self.sweepSeconds
+                    // Enters a band-width off the leading edge and leaves at
+                    // the trailing one, so it crosses rather than blinks.
+                    let travel = CGFloat(cycle) * (1 + Self.bandWidth) - Self.bandWidth
+                    bar(Theme.blenderBlue)
+                        .frame(width: width * Self.bandWidth)
+                        .offset(x: travel * width)
+                }
+            }
+        }
+        .clipShape(shape)
+        // Decoration under the row's controls, and it must never take a click.
+        .allowsHitTesting(false)
+    }
+
+    /// Solid in the middle and soft at both ends, so the determinate bar's
+    /// leading edge doesn't read as a hard line drawn across the row and the
+    /// sweeping band has no edges at all.
+    private func bar(_ tint: Color) -> some View {
+        LinearGradient(colors: [tint.opacity(0.35), tint.opacity(0.75), tint.opacity(0.35)],
+                       startPoint: .leading,
+                       endPoint: .trailing)
     }
 }
 
@@ -59,11 +133,19 @@ struct RowCard: View {
 /// instead, which lands on the same colour either way.
 struct RowHoverHighlight: View {
     var hovered: Bool
+    /// The same progress fill a standalone row's card takes, kept inside the
+    /// patch this child occupies.
+    var progress: RowProgress? = nil
 
-    var body: some View {
+    private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: Theme.Metrics.corner - Theme.Metrics.rowInset,
                          style: .continuous)
+    }
+
+    var body: some View {
+        shape
             .fill(hovered ? Theme.rowHoverFill : .clear)
+            .overlay { if let progress { RowProgressFill(progress: progress, shape: shape) } }
             .padding(.horizontal, 3)
             .animation(.smooth(duration: 0.15), value: hovered)
     }
