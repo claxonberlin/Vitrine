@@ -32,8 +32,8 @@ public struct SplashLibrary: Sendable {
     ///
     /// Dailies have no splash of their own — the painting is commissioned for
     /// a release, and a nightly build of `main` is not one — so they share a
-    /// single standing image, blurred so a row's chips read over any part of
-    /// it. Gleb Alexandrov's "Exploding Madness", made in Blender.
+    /// single standing image: Gleb Alexandrov's "Exploding Madness", made in
+    /// Blender. A card crops it to the band along the planet's edge.
     public static var dailyArtwork: URL? { bundledFile(named: "daily") }
 
     /// The artwork for a minor series ("5.2"): the copy that shipped with the
