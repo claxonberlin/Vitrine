@@ -160,6 +160,7 @@ public final class BuildStore {
                 minVersion: minVersion, platform: platform.buildPlatform
             )
             stable = builds.sorted { $0.parsedVersion > $1.parsedVersion }
+            backfillVintages(from: stable)
         } catch {
             lastError = "Stable archive: \(error.localizedDescription)"
         }
@@ -175,6 +176,7 @@ public final class BuildStore {
             // Keep alpha/candidate/beta out of stable, and drop the "stable"
             // risk_id — those land in the dedicated stable archive instead.
             daily = builds.filter { $0.riskId != "stable" }.sorted { $0.date > $1.date }
+            backfillVintages(from: daily)
         } catch {
             lastError = "Daily builds: \(error.localizedDescription)"
         }
@@ -188,8 +190,33 @@ public final class BuildStore {
                 .experimental, platform: platform.buildPlatform
             )
             experimental = builds.sorted { $0.date > $1.date }
+            backfillVintages(from: experimental)
         } catch {
             lastError = "Experimental: \(error.localizedDescription)"
+        }
+    }
+
+    /// Fills in the build date and hash for installs made before Vitrine
+    /// recorded them, whenever a fetch turns up the exact file one came from.
+    ///
+    /// Matched on source URL, which is exact — no guessing from a version
+    /// string. A library folder that predates URL tracking, or a build whose
+    /// file the archive no longer lists, keeps showing the day it was
+    /// installed, which is the only date anybody has for it.
+    private func backfillVintages(from pool: [RemoteBuild]) {
+        guard !installed.isEmpty else { return }
+        let byURL = Dictionary(pool.map { ($0.url, $0) }, uniquingKeysWith: { first, _ in first })
+        for index in installed.indices {
+            let build = installed[index]
+            guard !build.isCustom, !build.hasBuildDate,
+                  let source = build.sourceURL, let remote = byURL[source],
+                  remote.date != .distantPast else { continue }
+            installed[index].builtAt = remote.date
+            installed[index].sourceHash = remote.hash
+            installer.updateMetadata(for: build) {
+                $0.builtAt = remote.date
+                $0.sourceHash = remote.hash
+            }
         }
     }
 

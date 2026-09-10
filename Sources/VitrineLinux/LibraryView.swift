@@ -90,7 +90,7 @@ struct InstalledRow: View {
         // A daily is a position on a track that moves nightly, so it reads as
         // an age; everything else is a dated release and says which date.
         parts.append(build.branch == .daily
-                     ? DateFormat.relative(build.buildDate)
+                     ? DateFormat.recentDay(build.buildDate)
                      : DateFormat.day(build.buildDate))
         if let last = build.lastLaunchedAt {
             parts.append("opened \(DateFormat.relative(last))")

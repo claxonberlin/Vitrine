@@ -313,6 +313,24 @@ public enum DateFormat {
         date == .distantPast ? "—" : dayFormatter.string(from: date)
     }
 
+    /// "Today", "Yesterday", and the plain date from there.
+    ///
+    /// What a daily is worth saying: the builder rebuilds once a night, so
+    /// the day is the whole of the answer and an hours-old figure was
+    /// precision nobody could act on.
+    public static func recentDay(_ date: Date, now: Date = Date()) -> String {
+        guard date != .distantPast else { return day(date) }
+        let calendar = Calendar.current
+        let days = calendar.dateComponents([.day],
+                                           from: calendar.startOfDay(for: date),
+                                           to: calendar.startOfDay(for: now)).day ?? 0
+        switch days {
+        case 0: return "Today"
+        case 1: return "Yesterday"
+        default: return day(date)
+        }
+    }
+
     /// Compact past-tense interval, e.g. "3d ago".
     public static func relative(_ date: Date, now: Date = Date()) -> String {
         let seconds = now.timeIntervalSince(date)

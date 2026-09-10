@@ -171,3 +171,26 @@ final class BuildVintageTests: XCTestCase {
         XCTAssertEqual(BuildBranch.allCases, [.daily, .stable, .experimental])
     }
 }
+
+/// A daily says which day it came from, not how many hours ago it was built.
+final class RecentDayTests: XCTestCase {
+    private let now = Date(timeIntervalSince1970: 1_757_500_000)
+
+    private func day(offsetBy days: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: -days, to: now)!
+    }
+
+    func testTodayAndYesterdayAreNamed() {
+        XCTAssertEqual(DateFormat.recentDay(day(offsetBy: 0), now: now), "Today")
+        XCTAssertEqual(DateFormat.recentDay(day(offsetBy: 1), now: now), "Yesterday")
+    }
+
+    func testAnythingOlderIsADate() {
+        let older = day(offsetBy: 2)
+        XCTAssertEqual(DateFormat.recentDay(older, now: now), DateFormat.day(older))
+    }
+
+    func testUndatedStaysThePlaceholder() {
+        XCTAssertEqual(DateFormat.recentDay(.distantPast, now: now), "—")
+    }
+}

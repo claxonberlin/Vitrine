@@ -139,12 +139,13 @@ struct InstalledRow: View {
     private static let starMeaning =
         "Starred — opens .blend files, and puts `blender` on your PATH"
 
-    /// A daily is a position on a moving track, so it reads as an age — a
-    /// build from three days ago is three days behind. Everything else is a
-    /// dated release, and says which date.
+    /// A daily is a position on a moving track, so the recent ones read as
+    /// the day they came from. Everything else is a dated release, and says
+    /// which date — as does a daily old enough that "Today" and "Yesterday"
+    /// have nothing left to say about it.
     private var dateChip: String {
         build.branch == .daily
-            ? DateFormat.relative(build.buildDate)
+            ? DateFormat.recentDay(build.buildDate)
             : DateFormat.day(build.buildDate)
     }
 
@@ -336,7 +337,10 @@ struct CatalogueChips: View {
 
     private var tagChips: [ChipSpec] {
         var chips: [ChipSpec] = []
-        if let risk = build.riskLabel(under: branch) { chips.append(.text(risk)) }
+        // Every catalogue row says how finished its build is, "Stable"
+        // included. The heading it sits under is scrolled away half the time,
+        // and the chip is what the row is compared on.
+        chips.append(.text(build.riskLabel))
         // The hash tells two dailies of one version apart, which here is the
         // difference between the build on offer and the one already installed.
         if branch == .daily, let hash = build.hash {
@@ -346,13 +350,13 @@ struct CatalogueChips: View {
         return chips
     }
 
-    /// A daily reads as an age — how far behind tonight's build this one is.
-    /// Everything else is a dated release and says which date. The archive
-    /// publishes no date for some old releases, and those simply go without.
+    /// A daily reads as the day it came from; everything else says its
+    /// date. The archive publishes no date for some old releases, and those
+    /// simply go without.
     private var date: String? {
         guard build.date != .distantPast else { return nil }
         return branch == .daily
-            ? DateFormat.relative(build.date)
+            ? DateFormat.recentDay(build.date)
             : DateFormat.day(build.date)
     }
 

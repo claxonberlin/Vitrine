@@ -82,6 +82,7 @@ struct SeriesRow: View {
 
     private var subtitle: String {
         var parts = ["\(group.builds.count) releases"]
+        parts.append(group.latest.riskLabel)
         if store.isLTS(group.latest.version) { parts.append("LTS") }
         return parts.joined(separator: " · ")
     }
@@ -124,9 +125,9 @@ struct RemoteRow: View {
 
     private var subtitle: String {
         var parts: [String] = []
-        if !(branch == .stable && build.riskId == "stable") {
-            parts.append(build.riskLabel)
-        }
+        // Every catalogue row says how finished its build is, "Stable"
+        // included: the heading it sits under is scrolled away half the time.
+        parts.append(build.riskLabel)
         // The hash rides beside the risk it qualifies — it is what tells the
         // daily on offer from the one already installed.
         if branch == .daily, let hash = build.hash { parts.append(hash) }
@@ -136,7 +137,7 @@ struct RemoteRow: View {
         // entries carry neither.
         if build.date != .distantPast {
             parts.append(branch == .daily
-                         ? DateFormat.relative(build.date)
+                         ? DateFormat.recentDay(build.date)
                          : DateFormat.day(build.date))
         }
         if case .failed(let message) = store.downloadState(build.id) {

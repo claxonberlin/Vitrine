@@ -56,7 +56,7 @@ enum Theme {
     /// is hand-built from `.glassEffect(.regular.tint(colour.opacity(this)))`
     /// instead — lower this to let more of the splash art show through the
     /// buttons, raise it towards 1 for a near-solid fill.
-    static let cardGlassOpacity: Double = 0.62
+    static let cardGlassOpacity: Double = 0.8
 
     /// SF Pro with the "open" digit stylistic sets switched on — open 4,
     /// open 6, open 9 — used for every number the app draws in its own chrome

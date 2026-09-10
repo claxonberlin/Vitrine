@@ -158,7 +158,7 @@ struct GroupCard: View {
                 .opacity(isExpanded ? 0.4 : 1)
                 .animation(.smooth(duration: 0.2), value: isExpanded)
 
-            BadgeRow(riskLabel: group.latest.riskLabel(under: branch),
+            BadgeRow(riskLabel: group.latest.riskLabel,
                      isLTS: store.isLTS(group.latest.version))
 
             Spacer(minLength: 4)
