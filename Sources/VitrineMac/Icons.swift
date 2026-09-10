@@ -15,6 +15,7 @@ enum Icon: String {
     case update = "circle-arrow-up"
     case trash = "delete"
     case more = "options-horizontal"
+    case star = "favorite-fill"
 
     /// Rendered in the current foreground style. Missing artwork yields nil so
     /// a broken resource bundle leaves a gap rather than taking the app down.

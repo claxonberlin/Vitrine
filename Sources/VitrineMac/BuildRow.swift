@@ -86,6 +86,9 @@ struct InstalledRow: View {
             // `cardChipGap` — 2·chipHeight + 3·gap == the button's height.
             VStack(alignment: .leading, spacing: Theme.Metrics.cardChipGap) {
                 HStack(spacing: 4) {
+                    if build.pinned {
+                        CardStarChip()
+                    }
                     let isLTS = store.isLTS(build.version)
                     // "Stable" beside "LTS" says nothing "LTS" doesn't — an
                     // LTS build is always stable branch, stable risk.
@@ -363,13 +366,39 @@ struct CardChip: View {
             // back up before the frame is applied, so this shifts what is
             // drawn without moving the chip or its material.
             .offset(y: -1)
+            .cardChipBackground()
+            .accessibilityLabel(text)
+    }
+}
+
+/// The starred build's own chip: the same box every tag wears, with the
+/// star in place of a word. It leads the row's tags rather than joining
+/// them, since it says something about this build's standing in the library
+/// rather than about the build itself.
+private struct CardStarChip: View {
+    private static let meaning = "Starred — opens .blend files, and puts `blender` on your PATH"
+
+    var body: some View {
+        IconView(icon: .star, size: 10)
+            .foregroundStyle(.secondary)
+            .cardChipBackground()
+            .help(Self.meaning)
+            .accessibilityLabel("Starred")
+            .accessibilityHint(Self.meaning)
+    }
+}
+
+private extension View {
+    /// The chip itself: a small-radius rectangle of `.thickMaterial` hugging
+    /// whatever it holds, at the one chip height.
+    func cardChipBackground() -> some View {
+        self
             .padding(.horizontal, 5)
             .frame(height: Theme.Metrics.cardChipHeight)
             .background(
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(.thickMaterial)
             )
-            .accessibilityLabel(text)
     }
 }
 
