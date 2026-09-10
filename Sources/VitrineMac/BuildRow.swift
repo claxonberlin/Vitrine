@@ -80,7 +80,7 @@ struct InstalledRow: View {
             LaunchButton(version: build.version) { store.launch(build) }
 
             // Two stacked rows beside it, same chip styling on both: tags on
-            // top, the "added" date on the bottom. The gap between the rows,
+            // top, when the build was made on the bottom. The gap between the rows,
             // the gap from the top chip to the top of the Launch button, and
             // the gap from the bottom chip to its bottom are all the same
             // `cardChipGap` — 2·chipHeight + 3·gap == the button's height.
@@ -101,8 +101,16 @@ struct InstalledRow: View {
                     }
                 }
 
-                CardChip(text: DateFormat.day(build.installedAt))
-                    .accessibilityLabel("Added \(DateFormat.day(build.installedAt))")
+                HStack(spacing: 4) {
+                    CardChip(text: dateChip)
+                        .accessibilityLabel(dateDescription)
+                    // Only a daily needs the hash: it is the one thing telling
+                    // two builds of the same version apart.
+                    if build.branch == .daily, let hash = build.sourceHash {
+                        CardChip(text: hash)
+                            .accessibilityLabel("Build \(hash)")
+                    }
+                }
             }
             .padding(.vertical, Theme.Metrics.cardChipGap)
             .frame(height: Theme.Metrics.launchButtonSize.height, alignment: .leading)
@@ -124,6 +132,20 @@ struct InstalledRow: View {
                 RowMenu(buildName: build.version) { rowActions }
             }
         }
+    }
+
+    /// A daily is a position on a moving track, so it reads as an age — a
+    /// build from three days ago is three days behind. Everything else is a
+    /// dated release, and says which date.
+    private var dateChip: String {
+        build.branch == .daily
+            ? DateFormat.relative(build.buildDate)
+            : DateFormat.day(build.buildDate)
+    }
+
+    private var dateDescription: String {
+        let day = DateFormat.day(build.buildDate)
+        return build.hasBuildDate ? "Built \(day)" : "Added \(day)"
     }
 
     @ViewBuilder

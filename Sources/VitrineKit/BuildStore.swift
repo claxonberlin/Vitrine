@@ -208,7 +208,9 @@ public final class BuildStore {
                 let lv = Version(lhs.version) ?? .zero
                 let rv = Version(rhs.version) ?? .zero
                 if lv != rv { return lv > rv }
-                return lhs.installedAt > rhs.installedAt
+                // Dailies share one version string for months, so the vintage
+                // is what actually separates them.
+                return lhs.buildDate > rhs.buildDate
             }
         installedByBranch[branch] = items
         return items
@@ -329,7 +331,9 @@ public final class BuildStore {
                     self.downloads[target.id] = state
                 }
                 self.installed.append(new)
-                if let old {
+                // A daily's predecessor is kept as the rollback; every other
+                // branch replaces outright.
+                if let old, branch != .daily {
                     // The new build is in place either way. If the old one
                     // can't be removed it stays listed, because it is still
                     // on disk — see `uninstall(_:)`.
@@ -346,6 +350,9 @@ public final class BuildStore {
                     // toggleStar enforces single-star and re-applies wiring.
                     self.toggleStar(new)
                 }
+                // After the star has moved, so the build that just landed is
+                // the one the prune protects.
+                if branch == .daily { self.pruneDailies(inSeriesOf: new) }
             } catch DownloadManager.Failure.canceled {
                 self.finishInstall(of: target, replacing: old)
             } catch {
@@ -466,8 +473,9 @@ public final class BuildStore {
     /// somebody is keeping on purpose. So the button only appears when the
     /// target is newer than everything installed in that major.
     public func updateAvailable(for build: InstalledBuild) -> RemoteBuild? {
-        guard !build.isCustom,
-              let installedV = Version(build.version),
+        guard !build.isCustom else { return nil }
+        if build.branch == .daily { return dailyUpdate(for: build) }
+        guard let installedV = Version(build.version),
               let key = installedV.minorKey,
               let major = installedV.major else { return nil }
         let pool: [RemoteBuild]
@@ -494,6 +502,53 @@ public final class BuildStore {
             guard !other.isCustom, other.branch == branch,
                   let v = Version(other.version), v.major == major else { return false }
             return !(v < version)
+        }
+    }
+
+    /// A daily's update, which the version comparison above can never find:
+    /// the builder rebuilds `main` every night under one version string —
+    /// 5.3.0 alpha stays 5.3.0 alpha for months — and only the hash and the
+    /// build date move. So a daily is compared by vintage instead, within its
+    /// own X.Y series, and the newest listing wins whenever it is a different
+    /// build than the one on disk.
+    ///
+    /// A build installed before Vitrine recorded hashes has no vintage to
+    /// compare, so the newest daily is offered on the assumption that a
+    /// months-old alpha is behind. Once it is taken, the question answers
+    /// itself for good.
+    private func dailyUpdate(for build: InstalledBuild) -> RemoteBuild? {
+        guard let key = Version(build.version)?.minorKey,
+              let target = daily
+                .filter({ $0.parsedVersion.minorKey == key })
+                .max(by: { $0.date < $1.date })
+        else { return nil }
+        // Same build by any identifier we hold: nothing to offer.
+        if let installedHash = build.sourceHash, let remoteHash = target.hash {
+            guard installedHash != remoteHash else { return nil }
+        } else if let source = build.sourceURL, source == target.url {
+            return nil
+        }
+        guard build.hasBuildDate else { return target }
+        return target.date > build.buildDate ? target : nil
+    }
+
+    /// How many builds a daily series keeps: tonight's, and the one it
+    /// replaced. Alphas break, and the fix is almost always yesterday's build,
+    /// so an update leaves that one standing instead of deleting it — but only
+    /// that one, or the folder fills with copies of a single version number.
+    public static let dailyKeepCount = 2
+
+    /// Trims a daily series back to `dailyKeepCount`, newest vintage first.
+    /// The starred build is never removed, however old it is: a star is a
+    /// deliberate choice, and this runs without asking.
+    private func pruneDailies(inSeriesOf build: InstalledBuild) {
+        let key = Version(build.version)?.minorKey
+        let ordered = installed
+            .filter { $0.branch == .daily && !$0.isCustom
+                && Version($0.version)?.minorKey == key }
+            .sorted { $0.buildDate > $1.buildDate }
+        for stale in ordered.dropFirst(Self.dailyKeepCount) where !stale.pinned {
+            uninstall(stale)
         }
     }
 

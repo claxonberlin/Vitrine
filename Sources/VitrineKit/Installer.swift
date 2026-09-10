@@ -20,6 +20,10 @@ public struct BuildMetadata: Codable, Sendable {
     public var installedAt: Date
     public var lastLaunchedAt: Date?
     public var sourceURL: URL?
+    /// Both optional so a `.vitrine.json` written before they existed still
+    /// decodes — an older install simply has no vintage on record.
+    public var builtAt: Date?
+    public var sourceHash: String?
     public var pinned: Bool
 
     public static let fileName = ".vitrine.json"
@@ -96,6 +100,8 @@ public final class Installer: Sendable {
             installedAt: Date(),
             lastLaunchedAt: nil,
             sourceURL: build.url,
+            builtAt: build.date,
+            sourceHash: build.hash,
             pinned: false
         )
         try writeMetadata(metadata, into: destFolder)
@@ -108,6 +114,8 @@ public final class Installer: Sendable {
             installedAt: metadata.installedAt,
             lastLaunchedAt: nil,
             sourceURL: build.url,
+            builtAt: build.date,
+            sourceHash: build.hash,
             buildPath: buildPath,
             pinned: false
         )
@@ -146,6 +154,8 @@ public final class Installer: Sendable {
             installedAt: build.installedAt,
             lastLaunchedAt: build.lastLaunchedAt,
             sourceURL: build.sourceURL,
+            builtAt: build.builtAt,
+            sourceHash: build.sourceHash,
             pinned: build.pinned
         )
         mutate(&meta)
@@ -174,6 +184,8 @@ public final class Installer: Sendable {
                     installedAt: meta?.installedAt ?? Date(),
                     lastLaunchedAt: meta?.lastLaunchedAt,
                     sourceURL: meta?.sourceURL,
+                    builtAt: meta?.builtAt,
+                    sourceHash: meta?.sourceHash,
                     buildPath: buildPath,
                     pinned: meta?.pinned ?? false
                 ))

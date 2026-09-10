@@ -84,7 +84,15 @@ struct InstalledRow: View {
             parts.append(build.riskLabel)
         }
         if store.isLTS(build.version) { parts.append("LTS") }
-        parts.append(DateFormat.day(build.installedAt))
+        // A daily is a position on a track that moves nightly, so it reads as
+        // an age, with the hash that tells two builds of one version apart.
+        // Everything else is a dated release and says which date.
+        if build.branch == .daily {
+            parts.append(DateFormat.relative(build.buildDate))
+            if let hash = build.sourceHash { parts.append(hash) }
+        } else {
+            parts.append(DateFormat.day(build.buildDate))
+        }
         if let last = build.lastLaunchedAt {
             parts.append("opened \(DateFormat.relative(last))")
         }

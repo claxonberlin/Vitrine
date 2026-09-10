@@ -1,7 +1,10 @@
 import Foundation
 
+/// Declaration order is presentation order: both front ends list branches in
+/// `allCases` order, and Daily leads because it is the one track that moves
+/// every night — the list people come back to check.
 public enum BuildBranch: String, CaseIterable, Identifiable, Codable, Sendable {
-    case stable, daily, experimental
+    case daily, stable, experimental
 
     public var id: String { rawValue }
     public var title: String { rawValue.capitalizedFirst }
@@ -191,12 +194,22 @@ public struct InstalledBuild: Identifiable, Hashable, Codable, Sendable {
     public var installedAt: Date
     public var lastLaunchedAt: Date?
     public var sourceURL: URL?
+    /// When blender.org built or published this build, as opposed to when it
+    /// landed here. Nil for custom builds, and for library folders installed
+    /// before Vitrine recorded it.
+    public var builtAt: Date?
+    /// The short commit hash the builder API publishes, and the only thing
+    /// that distinguishes two daily builds: a daily keeps one version string
+    /// for months while the hash changes every night. Nil where unknown —
+    /// the stable archive publishes no hash.
+    public var sourceHash: String?
     /// The runnable build: a `.app` bundle on macOS, a build directory on Linux.
     public var buildPath: URL
     public var pinned: Bool
 
     public init(id: UUID, version: String, riskId: String, branch: BuildBranch,
                 installedAt: Date, lastLaunchedAt: Date?, sourceURL: URL?,
+                builtAt: Date? = nil, sourceHash: String? = nil,
                 buildPath: URL, pinned: Bool) {
         self.id = id
         self.version = version
@@ -205,11 +218,25 @@ public struct InstalledBuild: Identifiable, Hashable, Codable, Sendable {
         self.installedAt = installedAt
         self.lastLaunchedAt = lastLaunchedAt
         self.sourceURL = sourceURL
+        self.builtAt = builtAt
+        self.sourceHash = sourceHash
         self.buildPath = buildPath
         self.pinned = pinned
     }
 
     public var riskLabel: String { riskId.capitalizedFirst }
+
+    /// The date this build is placed by: its own build date where blender.org
+    /// published one, and otherwise the day it was installed. Used for both
+    /// the date a row shows and the order dailies are pruned in, so the two
+    /// can never disagree.
+    public var buildDate: Date {
+        if let builtAt, builtAt != .distantPast { return builtAt }
+        return installedAt
+    }
+
+    /// True when `buildDate` is the build's own date rather than a stand-in.
+    public var hasBuildDate: Bool { builtAt != nil && builtAt != .distantPast }
 
     /// The risk chip a front end should draw — nil under the Stable heading,
     /// which already says as much. See `RemoteBuild.riskLabel(under:)`.

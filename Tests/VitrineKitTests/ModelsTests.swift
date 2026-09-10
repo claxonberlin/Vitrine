@@ -153,3 +153,36 @@ final class RiskLabelTests: XCTestCase {
                                  branch: .stable).displayRiskLabel, "Custom")
     }
 }
+
+
+/// Which date a row shows, and which one dailies are pruned in. Both read
+/// `buildDate`, so the rule lives in one place and is pinned here.
+final class BuildVintageTests: XCTestCase {
+    private func build(installedAt: Date, builtAt: Date?) -> InstalledBuild {
+        InstalledBuild(id: UUID(), version: "5.3.0", riskId: "alpha", branch: .daily,
+                       installedAt: installedAt, lastLaunchedAt: nil, sourceURL: nil,
+                       builtAt: builtAt, sourceHash: "d0cbe84903e8",
+                       buildPath: URL(fileURLWithPath: "/tmp/Blender.app"), pinned: false)
+    }
+
+    func testBuildDatePrefersTheBuildsOwnDate() {
+        let built = Date(timeIntervalSince1970: 1_000_000)
+        let b = build(installedAt: Date(timeIntervalSince1970: 2_000_000), builtAt: built)
+        XCTAssertEqual(b.buildDate, built)
+        XCTAssertTrue(b.hasBuildDate)
+    }
+
+    func testInstallDateStandsInWhenNoneWasRecorded() {
+        let added = Date(timeIntervalSince1970: 2_000_000)
+        for missing in [nil, Date.distantPast] {
+            let b = build(installedAt: added, builtAt: missing)
+            XCTAssertEqual(b.buildDate, added)
+            XCTAssertFalse(b.hasBuildDate)
+        }
+    }
+
+    /// Daily leads both lists, because it is the track that moves nightly.
+    func testDailyIsListedFirst() {
+        XCTAssertEqual(BuildBranch.allCases, [.daily, .stable, .experimental])
+    }
+}
