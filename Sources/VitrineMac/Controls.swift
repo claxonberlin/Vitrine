@@ -207,7 +207,13 @@ struct RowMenu<Actions: View>: View {
         // doesn't render at all.
         Menu(content: actions) {
             glyph
-                .foregroundStyle(.secondary)
+                // Pinned, not vibrant. `.secondary` is resolved against
+                // whatever sits behind the control — the splash painting —
+                // so over a dark card the glyph went white while the disc
+                // stayed light. `secondaryLabelColor` follows the appearance
+                // and nothing else, which is exactly how the disc's own tint
+                // moves, so the two can no longer disagree.
+                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                 .frame(width: Self.diameter, height: Self.diameter)
         }
         .menuStyle(.button)

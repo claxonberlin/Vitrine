@@ -55,8 +55,13 @@ enum Theme {
     /// has no translucency knob of its own, so every button on a library row
     /// is hand-built from `.glassEffect(.regular.tint(colour.opacity(this)))`
     /// instead — lower this to let more of the splash art show through the
-    /// buttons, raise it towards 1 for a near-solid fill.
-    static let cardGlassOpacity: Double = 0.8
+    /// buttons, raise it towards 1 for a solid fill.
+    ///
+    /// Solid. A translucent tint let the painting decide how light each
+    /// button came out, and a button whose lightness the artwork sets can't
+    /// be given a glyph colour that reads on all of them. The glass keeps its
+    /// edge and its specular sheen; only the fill underneath is stated.
+    static let cardGlassOpacity: Double = 1.0
 
     /// SF Pro with the "open" digit stylistic sets switched on — open 4,
     /// open 6, open 9 — used for every number the app draws in its own chrome
