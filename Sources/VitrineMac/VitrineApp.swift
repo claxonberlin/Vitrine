@@ -46,14 +46,6 @@ struct VitrineApp: App {
                     // Clearing it only changes the starting point: tabbing to
                     // a control still rings it, as it should.
                     window.makeFirstResponder(nil)
-                    // Left to itself, AppKit draws a hairline under the title
-                    // bar whenever the content below isn't a scroll view it
-                    // recognises — which is exactly the empty library, and the
-                    // line then sticks around through a catalogue trip and
-                    // only clears once the first build lands. The toolbar is
-                    // glass and dissolves its own scroll edge; a hairline
-                    // under it is never what this window wants.
-                    window.titlebarSeparatorStyle = .none
                 })
         }
         .defaultSize(width: Theme.Metrics.windowMinWidth,

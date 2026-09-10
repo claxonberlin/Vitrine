@@ -276,6 +276,28 @@ struct LibraryPane: View {
     /// it says that and draws nothing — the catalogue's own glyph above the
     /// line, so there is no hunting for which button is meant.
     private var emptyState: some View {
+        // Wrapped in a scroll view it will never need to scroll, because the
+        // hairline under the title bar is the *hard* scroll-edge effect the
+        // system falls back to whenever the content below the toolbar isn't a
+        // scroll view at all. The installed list never drew one; this puts the
+        // empty library on exactly the same footing. Setting the window's own
+        // `titlebarSeparatorStyle` doesn't reach it.
+        // The geometry reader is what keeps the tip centred as the window
+        // resizes: a scroll view sizes its content from the content itself, so
+        // without a minimum height to fill it would sit at the top and stay
+        // there. Measuring the space the scroll view was given and asking the
+        // tip for at least that much hands the centring back to the frame.
+        GeometryReader { proxy in
+            ScrollView {
+                tip.frame(minHeight: proxy.size.height)
+            }
+            .scrollContentBackground(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
+            .softScrollEdgeCompat(for: .top)
+        }
+    }
+
+    private var tip: some View {
         VStack(spacing: 12) {
             IconView(icon: .catalogue, size: 26)
                 .foregroundStyle(.tertiary)
