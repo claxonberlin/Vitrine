@@ -101,19 +101,23 @@ struct RemoteRow: View {
                 CatalogueAction(build: build, branch: branch)
             }
             .suffix {
-                if case .downloading(let received, let total, let bps) = store.downloadState(build.id) {
+                if case .downloading(let received, let total, _) = store.downloadState(build.id) {
                     let fraction = total > 0 ? min(1.0, Double(received) / Double(total)) : 0
-                    let eta = bps > 0 && total > received
-                        ? Double(total - received) / bps
-                        : -1
                     VStack {
                         ProgressBar(value: fraction, total: 1)
                             .frame(minWidth: 120)
-                        Text(DurationFormat.eta(seconds: eta))
+                        // The bar says how far along it is; the label only has
+                        // to say which half of the job this is.
+                        Text("Downloading")
                             .caption()
                             .dimLabel()
                     }
                     .valign(.center)
+                } else if case .installing = store.downloadState(build.id) {
+                    Text("Installing")
+                        .caption()
+                        .dimLabel()
+                        .valign(.center)
                 }
             }
     }

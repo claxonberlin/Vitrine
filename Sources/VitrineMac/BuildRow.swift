@@ -260,14 +260,12 @@ struct RemoteRow: View {
     @ViewBuilder
     private var trailing: some View {
         switch store.downloadState(build.id) {
-        case .downloading(let received, let total, let bps):
+        case .downloading(let received, let total, _):
             let fraction = total > 0 ? min(1.0, Double(received) / Double(total)) : 0
-            let etaSeconds = bps > 0 && total > received ? Double(total - received) / bps : -1
-            // Just the time left. The card behind this is the progress bar
-            // now, so a second one here would be saying it twice.
-            Text(DurationFormat.eta(seconds: etaSeconds))
-                .font(Theme.openDigits(size: 10))
-                .monospacedDigit()
+            // Just the word. The card behind this is the progress bar now, and
+            // how far along it is is the one thing it already says.
+            Text("Downloading")
+                .font(.system(size: 10))
                 .foregroundStyle(.secondary)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Downloading Blender \(build.version)")

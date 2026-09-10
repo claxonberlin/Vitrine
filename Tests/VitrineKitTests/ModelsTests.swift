@@ -95,21 +95,6 @@ final class LTSTests: XCTestCase {
     }
 }
 
-final class DurationFormatTests: XCTestCase {
-    func testETAFormats() {
-        XCTAssertEqual(DurationFormat.eta(seconds: 5), "0:05")
-        XCTAssertEqual(DurationFormat.eta(seconds: 75), "1:15")
-        XCTAssertEqual(DurationFormat.eta(seconds: 3675), "1:01:15")
-    }
-
-    func testETAPlaceholderForUnknowable() {
-        XCTAssertEqual(DurationFormat.eta(seconds: 0), "—")
-        XCTAssertEqual(DurationFormat.eta(seconds: -3), "—")
-        XCTAssertEqual(DurationFormat.eta(seconds: .infinity), "—")
-        XCTAssertEqual(DurationFormat.eta(seconds: 60 * 60 * 24), "—")
-    }
-}
-
 final class DownloadStateTests: XCTestCase {
     func testIsActive() {
         XCTAssertTrue(DownloadState.queued.isActive)

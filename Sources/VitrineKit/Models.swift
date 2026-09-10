@@ -297,15 +297,6 @@ public enum ByteFormat {
     }
 }
 
-public enum DurationFormat {
-    public static func eta(seconds: Double) -> String {
-        guard seconds.isFinite, seconds > 0, seconds < 60 * 60 * 24 else { return "—" }
-        let s = Int(seconds)
-        if s >= 3600 { return String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60) }
-        return String(format: "%d:%02d", s / 60, s % 60)
-    }
-}
-
 public enum DateFormat {
     private static let dayFormatter: DateFormatter = {
         let df = DateFormatter()
