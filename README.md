@@ -1,8 +1,18 @@
 # Vitrine
 
+*Designed by a human, programmed by Claude.*
+
 A Blender build manager for macOS and Fedora. Browse the catalogue on
 blender.org, install stable, daily or experimental builds side by side, and
 star the one the desktop should treat as *the* Blender.
+
+## In motion
+
+https://github.com/claxonberlin/Vitrine/raw/main/docs/vitrine-demo.mp4
+
+A screen recording of the macOS app: the catalogue floating over the library,
+an install, and the starred build. The file also sits at
+[`docs/vitrine-demo.mp4`](docs/vitrine-demo.mp4).
 
 ## Shape of the project
 
