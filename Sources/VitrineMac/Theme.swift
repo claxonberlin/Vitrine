@@ -40,6 +40,17 @@ enum Theme {
             : NSColor(white: 0.72, alpha: 1)
     })
 
+    /// The flat ground behind a catalogue row. The catalogue sits on the
+    /// window's own grey with nothing but artwork-free rows on it, so a
+    /// material here had nothing to frost — it only made every card read as a
+    /// slightly different sheet depending on what the window showed through.
+    /// A plain light grey states the card instead.
+    static let catalogueCard = Color(nsColor: NSColor(name: "catalogueCard") { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor(white: 0.22, alpha: 1)
+            : NSColor(white: 0.925, alpha: 1)
+    })
+
     /// How strongly a card button's tint sits on its glass. `.glassProminent`
     /// has no translucency knob of its own, so every button on a library row
     /// is hand-built from `.glassEffect(.regular.tint(colour.opacity(this)))`

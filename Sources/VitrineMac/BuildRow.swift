@@ -277,8 +277,12 @@ struct CatalogueAction: View {
     var body: some View {
         HStack(spacing: Theme.Metrics.rowSpacing) {
             action
+            // The same treatment the library gives a version on its Launch
+            // button — bold, condensed, open digits — only smaller, so a
+            // version reads as the same kind of thing on both pages.
             Text(label ?? build.version)
-                .font(Theme.openDigits(size: 13, weight: .medium))
+                .font(Theme.openDigits(size: 15, weight: .bold))
+                .fontWidth(.condensed)
                 .monospacedDigit()
                 .fixedSize()
                 .accessibilityLabel("Blender \(label ?? build.version)")
@@ -339,7 +343,7 @@ struct CatalogueAction: View {
 /// A small text chip on a library card — the "added" date and each tag wear
 /// it: Sequoia's `.thinMaterial` in a small-radius rectangle that hugs the
 /// text, with dark text on top.
-private struct CardChip: View {
+struct CardChip: View {
     let text: String
 
     var body: some View {

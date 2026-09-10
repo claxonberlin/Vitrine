@@ -30,15 +30,13 @@ extension View {
 /// The card behind a row. Lifts slightly under the pointer so a long list
 /// still tells you which row you are on.
 ///
-/// Real Liquid Glass was tried here and dropped again: `.glassEffect()`
-/// samples the content directly behind each glass shape and adapts its own
-/// tint to it, which is the point of the material for something compact
-/// like a button, but a row card is wide enough to span both a bright and a
-/// shadowed patch of the splash artwork in one shot — the same card comes
-/// out looking like two different materials stitched together rather than
-/// one continuous surface. `thinMaterial` doesn't adapt to what's
-/// behind it at all, so every row reads as the same frosted sheet no matter
-/// how busy the artwork gets there, on every macOS version.
+/// Flat rather than any material. Liquid Glass was tried here first and
+/// dropped: `.glassEffect()` adapts its tint to whatever sits behind each
+/// shape, and a card this wide spans both a bright and a shadowed patch at
+/// once, so one card came out looking like two materials stitched together.
+/// A frosted material fixed that but frosts nothing — the catalogue rows
+/// stand on the window's plain ground — so the card now simply states its
+/// own light grey, on every macOS version and both appearances.
 struct RowCard: View {
     var hovered: Bool = false
 
@@ -48,7 +46,7 @@ struct RowCard: View {
 
     var body: some View {
         shape
-            .fill(.thinMaterial)
+            .fill(Theme.catalogueCard)
             .overlay { if hovered { shape.fill(Theme.rowHoverFill) } }
             .overlay { shape.strokeBorder(Theme.rowStroke, lineWidth: 0.5) }
             .animation(.smooth(duration: 0.15), value: hovered)
@@ -367,6 +365,10 @@ struct UpdateButton: View {
 
 /// The chips beside a version: how finished the build is, and whether its
 /// series is long-term support.
+///
+/// The library's own chips, in the library's own style — one row of them,
+/// since a catalogue row has a single line to spend and no "added" date to
+/// put on a second one.
 struct BadgeRow: View {
     let riskLabel: String?
     let isLTS: Bool
@@ -374,50 +376,20 @@ struct BadgeRow: View {
     var body: some View {
         HStack(spacing: 4) {
             if let riskLabel {
-                Badge(text: riskLabel)
+                CardChip(text: riskLabel)
             }
             if isLTS {
-                LTSBadge()
+                CardChip(text: "LTS")
+                    .help(Self.ltsMeaning)
+                    .accessibilityLabel("Long-term support")
+                    .accessibilityHint(Self.ltsMeaning)
             }
         }
+        // The chips give way before the row's fixed-size controls do, exactly
+        // as they do on a library row.
+        .layoutPriority(-1)
     }
+
+    private static let ltsMeaning = "Long-term support — two years of bug-fix releases"
 }
 
-/// Fixed rather than tinted to the library's blue or the catalogue's orange —
-/// the same chip either place, so LTS reads as one consistent label rather
-/// than picking up whichever accent colour the row around it happens to use.
-struct LTSBadge: View {
-    private static let meaning = "Long-term support — two years of bug-fix releases"
-
-    var body: some View {
-        Badge(text: "LTS", sunken: true)
-            .help(Self.meaning)
-            .accessibilityLabel("L T S")
-            .accessibilityHint(Self.meaning)
-    }
-}
-
-struct Badge: View {
-    let text: String
-    /// The same sunken well `RowMenu`'s "···" button sits in — the LTS
-    /// badge's own look, so it reads as the same kind of chrome as the row's
-    /// other fixed control rather than a coloured status label.
-    var sunken: Bool = false
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .semibold))
-            .tracking(0.3)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    // Black rather than `primary`, which would lighten the
-                    // well in dark mode instead of deepening it — same
-                    // reasoning as `RowMenu`'s own well.
-                    .fill(sunken ? Color.black.opacity(0.13) : Color.primary.opacity(0.08))
-            }
-            .fixedSize()
-    }
-}

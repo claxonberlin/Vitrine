@@ -459,6 +459,10 @@ public final class BuildStore {
     /// switching tracks (stable → daily), which isn't what "update" implies.
     /// Custom builds opt out — their version strings often aren't real Blender
     /// versions.
+    ///
+    /// An older minor also opts out once the major's newest minor is installed:
+    /// someone keeping 4.2 alongside 4.5 is keeping *that* line on purpose, so
+    /// nudging 4.2.1 towards 4.2.2 is noise rather than news.
     public func updateAvailable(for build: InstalledBuild) -> RemoteBuild? {
         guard !build.isCustom,
               let installedV = Version(build.version),
@@ -469,9 +473,33 @@ public final class BuildStore {
         case .daily: pool = daily
         case .experimental: pool = experimental
         }
+        if supersededByNewestMinor(installedV, in: pool, branch: build.branch) { return nil }
         return pool
             .filter { $0.parsedVersion.minorKey == key && $0.parsedVersion > installedV }
             .max { $0.parsedVersion < $1.parsedVersion }
+    }
+
+    /// True when a newer minor of the same major exists remotely, that minor is
+    /// the newest one the major offers, and it is already installed on the same
+    /// branch.
+    private func supersededByNewestMinor(
+        _ installedV: Version,
+        in pool: [RemoteBuild],
+        branch: BuildBranch
+    ) -> Bool {
+        guard let major = installedV.major else { return false }
+        let newestMinor = pool
+            .map(\.parsedVersion)
+            .filter { $0.major == major }
+            .compactMap { v in v.minorKey.map { (key: $0, version: v) } }
+            .max { $0.version < $1.version }?
+            .key
+        guard let newestMinor, newestMinor != installedV.minorKey else { return false }
+        return installed.contains { other in
+            !other.isCustom
+                && other.branch == branch
+                && Version(other.version)?.minorKey == newestMinor
+        }
     }
 
     /// True while an in-place update for this build is downloading.

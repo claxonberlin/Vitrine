@@ -80,6 +80,10 @@ public struct Version: Hashable, Comparable, Codable, CustomStringConvertible, S
         guard components.count >= 2 else { return nil }
         return "\(components[0]).\(components[1])"
     }
+
+    /// The leading component, i.e. the major version. Nil for an empty
+    /// version string.
+    public var major: Int? { components.first }
 }
 
 /// The X.Y branches Blender designates as Long-Term Support (two years of
