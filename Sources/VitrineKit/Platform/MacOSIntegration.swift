@@ -259,10 +259,7 @@ struct MacOSIntegration: PlatformIntegration {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 400_000_000)
                 guard !Task.isCancelled, total > 0 else { continue }
-                // Never quite 1: the copy isn't done until `copyItem`
-                // returns, and a bar sitting full while the row still says
-                // "Installing" reads as a stall.
-                progress(min(0.98, Double(Self.size(of: dest)) / Double(total)))
+                progress(min(1, Double(Self.size(of: dest)) / Double(total)))
             }
         }
         defer { watcher.cancel() }
