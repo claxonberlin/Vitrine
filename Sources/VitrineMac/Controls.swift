@@ -182,6 +182,10 @@ struct RowHoverHighlight: View {
 /// it reads as a control at rest instead of only on hover — which is what
 /// the library rows used to rely on.
 struct RowMenu<Actions: View>: View {
+    /// The window's own appearance, read out here where it is still the
+    /// window's — inside the glass it would be the material's. See
+    /// `Theme.cardButtonFill(_:)`.
+    @Environment(\.colorScheme) private var scheme
     let buildName: String
     @ViewBuilder let actions: () -> Actions
 
@@ -207,13 +211,10 @@ struct RowMenu<Actions: View>: View {
         // doesn't render at all.
         Menu(content: actions) {
             glyph
-                // Pinned, not vibrant. `.secondary` is resolved against
-                // whatever sits behind the control — the splash painting —
-                // so over a dark card the glyph went white while the disc
-                // stayed light. `secondaryLabelColor` follows the appearance
-                // and nothing else, which is exactly how the disc's own tint
-                // moves, so the two can no longer disagree.
-                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                // A flat colour, chosen by the window's scheme rather than
+                // left to be resolved inside the glass — see
+                // `Theme.cardButtonGlyph(_:)` for what that costs.
+                .foregroundStyle(Theme.cardButtonGlyph(scheme))
                 .frame(width: Self.diameter, height: Self.diameter)
         }
         .menuStyle(.button)
@@ -222,10 +223,7 @@ struct RowMenu<Actions: View>: View {
         .buttonStyle(.disc(hoverInk: Hover.onSurface))
         .menuIndicator(.hidden)
         .fixedSize()
-        // The system's control surface rather than a literal white, so the
-        // disc stays light in light appearance and turns with the rest of the
-        // chrome in dark — the same way the chips' material does.
-        .cardGlass(tint: Color(nsColor: .controlBackgroundColor), in: Circle())
+        .cardGlass(tint: Theme.cardButtonFill(scheme), in: Circle())
     }
 
     private var glyph: some View {

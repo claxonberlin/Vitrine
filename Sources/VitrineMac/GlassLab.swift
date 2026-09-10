@@ -21,7 +21,16 @@ struct GlassLab: View {
     @State private var tintOpacity: Double = Theme.cardGlassOpacity
     @State private var tint: Color = Theme.catalogueAccent
     @State private var scheme: ColorScheme = .light
-    @State private var showsBackdrop = true
+    @State private var backdropKind: Backdrop = .painting
+
+    /// What the specimens stand on. Black is the case that breaks things: the
+    /// darker the backdrop, the harder a vibrant label is pushed towards
+    /// white, whatever colour it was given.
+    private enum Backdrop: String, CaseIterable, Identifiable {
+        case painting, black, window
+        var id: String { rawValue }
+        var title: String { rawValue.capitalized }
+    }
 
     /// How many copies of a specimen straddle the picture.
     private static let repeats = 5
@@ -60,7 +69,11 @@ struct GlassLab: View {
                     .frame(width: 34, alignment: .trailing)
             }
 
-            Toggle("Backdrop", isOn: $showsBackdrop)
+            Picker("Backdrop", selection: $backdropKind) {
+                ForEach(Backdrop.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 210)
 
             Spacer()
         }
@@ -85,7 +98,16 @@ struct GlassLab: View {
 
     @ViewBuilder
     private var backdrop: some View {
-        if showsBackdrop, let url = SplashLibrary.dailyArtwork,
+        switch backdropKind {
+        case .black: Color.black
+        case .window: Theme.windowBackground
+        case .painting: painting
+        }
+    }
+
+    @ViewBuilder
+    private var painting: some View {
+        if let url = SplashLibrary.dailyArtwork,
            let image = NSImage(contentsOf: url) {
             Image(nsImage: image)
                 .resizable()
@@ -207,6 +229,65 @@ struct GlassLab: View {
                     .padding(8)
                     .glassEffect(.regular.tint(Color(nsColor: .controlBackgroundColor)
                         .opacity(tintOpacity)), in: .circle))
+            },
+            // What the row menu wears now: both ends stated, neither
+            // semantic, so nothing in the pair can be re-resolved against
+            // the picture.
+            Specimen(name: "stated fill + stated glyph") {
+                AnyView(Button {} label: { LabGlyph() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.cardButtonGlyph(scheme))
+                    .padding(8)
+                    .glassEffect(.regular.tint(Theme.cardButtonFill(scheme).opacity(tintOpacity)),
+                                 in: .circle))
+            },
+            // The library row's control is a `Menu`, not a `Button`. Same
+            // modifiers, same colours — if this one drifts where the plain
+            // button above holds, the menu's own chrome is what re-resolves
+            // the colours.
+            Specimen(name: "Menu, stated fill + stated glyph") {
+                AnyView(Menu {
+                    Button("Nothing") {}
+                } label: {
+                    LabGlyph()
+                        .foregroundStyle(Theme.cardButtonGlyph(scheme))
+                        .frame(width: Theme.Metrics.actionHeight,
+                               height: Theme.Metrics.actionHeight)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.disc(hoverInk: Hover.onSurface))
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .glassEffect(.regular.tint(Theme.cardButtonFill(scheme).opacity(tintOpacity)),
+                             in: .circle))
+            },
+            // Two ways out of the blend, if a stated colour isn't enough:
+            // ask for normal compositing, or draw the glyph over the glass
+            // instead of inside it.
+            Specimen(name: "…stated, + blendMode(.normal)") {
+                AnyView(Button {} label: { LabGlyph() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.cardButtonGlyph(scheme))
+                    .blendMode(.normal)
+                    .padding(8)
+                    .glassEffect(.regular.tint(Theme.cardButtonFill(scheme).opacity(tintOpacity)),
+                                 in: .circle))
+            },
+            Specimen(name: "…glyph drawn over the glass, not in it") {
+                AnyView(Button {} label: {
+                    Color.clear
+                        .frame(width: Theme.Metrics.actionHeight - Theme.Metrics.glassCirclePadding,
+                               height: Theme.Metrics.actionHeight - Theme.Metrics.glassCirclePadding)
+                }
+                    .buttonStyle(.plain)
+                    .padding(8)
+                    .glassEffect(.regular.tint(Theme.cardButtonFill(scheme).opacity(tintOpacity)),
+                                 in: .circle)
+                    .overlay {
+                        LabGlyph()
+                            .foregroundStyle(Theme.cardButtonGlyph(scheme))
+                            .allowsHitTesting(false)
+                    })
             },
             Specimen(name: "untinted .regular + .secondary") {
                 AnyView(Button {} label: { LabGlyph() }

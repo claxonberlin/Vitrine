@@ -51,6 +51,28 @@ enum Theme {
             : NSColor(white: 0.925, alpha: 1)
     })
 
+    /// The disc under a row's "···", and the glyph on it.
+    ///
+    /// Flat numbers, picked by the *window's* light or dark scheme, which is
+    /// read from the environment and passed in. Nothing here is a dynamic
+    /// colour, and that is the whole point.
+    ///
+    /// A glass control installs a vibrant appearance over its contents, and
+    /// whether that appearance is the light or the dark one is chosen from
+    /// whatever the glass is lensing. Any dynamic colour inside — a system
+    /// semantic like `secondaryLabelColor`, or a hand-rolled `NSColor(name:)`
+    /// — is resolved again under it, so over a dark card it comes back as its
+    /// dark-appearance value while the same colour used as the tint, resolved
+    /// earlier and outside, stays light. That split is what put a white glyph
+    /// on a white disc. A flat colour has nothing left to re-resolve.
+    static func cardButtonFill(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(white: 0.26) : Color(white: 1.0)
+    }
+
+    static func cardButtonGlyph(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(white: 0.90) : Color(white: 0.34)
+    }
+
     /// How strongly a card button's tint sits on its glass. `.glassProminent`
     /// has no translucency knob of its own, so every button on a library row
     /// is hand-built from `.glassEffect(.regular.tint(colour.opacity(this)))`
