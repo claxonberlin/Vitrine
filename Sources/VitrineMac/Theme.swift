@@ -116,6 +116,12 @@ enum Theme {
         static let cardChipHeight: CGFloat = 16
         static var cardChipGap: CGFloat { (launchButtonSize.height - cardChipHeight * 2) / 3 }
 
+        /// The same idea as `cardChipGap`, for the catalogue's two-chip
+        /// stack: a gap repeated above, between and below the chips — but
+        /// measured against the catalogue row's own height, since there is no
+        /// Launch button here to line up with.
+        static var rowChipGap: CGFloat { (rowHeight - cardChipHeight * 2) / 3 }
+
         /// The gap between the two round controls at the trailing end of a
         /// library row — the Update button and the "···" menu. Its own knob,
         /// independent of `libraryRowSpacing` (which sets every other gap in

@@ -219,8 +219,7 @@ struct RemoteRow: View {
         HStack(spacing: Theme.Metrics.rowSpacing) {
             CatalogueAction(build: build, branch: branch)
 
-            BadgeRow(riskLabel: build.riskLabel(under: branch),
-                     isLTS: store.isLTS(build.version))
+            CatalogueChips(build: build, branch: branch)
 
             Spacer(minLength: 4)
 
@@ -300,6 +299,73 @@ struct RemoteRow: View {
             }
         }
     }
+}
+
+/// What a catalogue row wears beside its version: the same chips a library
+/// card does, in the same order — the risk, a daily's hash, LTS — with the
+/// build's own date under them. Two rows spread evenly over the catalogue
+/// row's height, the way the card's chips are spread over the height of its
+/// Launch button.
+struct CatalogueChips: View {
+    @EnvironmentObject private var bridge: StoreBridge
+    private var store: BuildStore { bridge.store }
+    let build: RemoteBuild
+    let branch: BuildBranch
+
+    private static let ltsMeaning = "Long-term support — two years of bug-fix releases"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Metrics.rowChipGap) {
+            if hasTags {
+                HStack(spacing: 4) {
+                    if let risk = build.riskLabel(under: branch) {
+                        CardChip(text: risk)
+                    }
+                    // The hash tells two dailies of one version apart, which
+                    // in the catalogue is the difference between the build on
+                    // offer and the one already installed.
+                    if branch == .daily, let hash = build.hash {
+                        CardChip(text: hash)
+                            .accessibilityLabel("Build \(hash)")
+                    }
+                    if isLTS {
+                        CardChip(text: "LTS")
+                            .help(Self.ltsMeaning)
+                            .accessibilityLabel("Long-term support")
+                            .accessibilityHint(Self.ltsMeaning)
+                    }
+                }
+            }
+            if let date {
+                CardChip(text: date)
+                    .accessibilityLabel(dateDescription)
+            }
+        }
+        .padding(.vertical, Theme.Metrics.rowChipGap)
+        .frame(height: Theme.Metrics.rowHeight, alignment: .leading)
+        // The chips give way before the row's fixed-size controls do, exactly
+        // as they do on a library row.
+        .layoutPriority(-1)
+    }
+
+    private var isLTS: Bool { store.isLTS(build.version) }
+
+    private var hasTags: Bool {
+        build.riskLabel(under: branch) != nil || isLTS
+            || (branch == .daily && build.hash != nil)
+    }
+
+    /// A daily reads as an age — how far behind tonight's build this one is.
+    /// Everything else is a dated release and says which date. The archive
+    /// publishes no date for some old releases, and those simply go without.
+    private var date: String? {
+        guard build.date != .distantPast else { return nil }
+        return branch == .daily
+            ? DateFormat.relative(build.date)
+            : DateFormat.day(build.date)
+    }
+
+    private var dateDescription: String { "Built \(DateFormat.day(build.date))" }
 }
 
 /// The leading control shared by catalogue rows and group headers: download,

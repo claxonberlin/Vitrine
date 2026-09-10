@@ -127,8 +127,18 @@ struct RemoteRow: View {
         if !(branch == .stable && build.riskId == "stable") {
             parts.append(build.riskLabel)
         }
+        // The hash rides beside the risk it qualifies — it is what tells the
+        // daily on offer from the one already installed.
+        if branch == .daily, let hash = build.hash { parts.append(hash) }
         if store.isLTS(build.version) { parts.append("LTS") }
         if build.fileSize > 0 { parts.append(ByteFormat.string(build.fileSize)) }
+        // A daily reads as an age; a release says its date. Some old archive
+        // entries carry neither.
+        if build.date != .distantPast {
+            parts.append(branch == .daily
+                         ? DateFormat.relative(build.date)
+                         : DateFormat.day(build.date))
+        }
         if case .failed(let message) = store.downloadState(build.id) {
             parts.append(message)
         }
