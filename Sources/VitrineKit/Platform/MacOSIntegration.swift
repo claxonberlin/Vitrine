@@ -56,10 +56,11 @@ struct MacOSIntegration: PlatformIntegration {
 
     // MARK: - Install
 
-    func extract(archive: URL, into destination: URL) async throws -> URL {
+    func extract(archive: URL, into destination: URL,
+                 progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
         let mountPoint = try await attach(archive)
         do {
-            let appPath = try copyApp(from: mountPoint, into: destination)
+            let appPath = try copyApp(from: mountPoint, into: destination, progress: progress)
             await detach(mountPoint)
             return appPath
         } catch {
@@ -236,7 +237,8 @@ struct MacOSIntegration: PlatformIntegration {
 
     // MARK: - DMG
 
-    private func copyApp(from mountPoint: String, into destFolder: URL) throws -> URL {
+    private func copyApp(from mountPoint: String, into destFolder: URL,
+                         progress: @escaping @Sendable (Double) -> Void) throws -> URL {
         let mountDir = URL(fileURLWithPath: mountPoint, isDirectory: true)
         let entries = try FileManager.default.contentsOfDirectory(
             at: mountDir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
@@ -248,8 +250,40 @@ struct MacOSIntegration: PlatformIntegration {
         if FileManager.default.fileExists(atPath: dest.path) {
             try FileManager.default.removeItem(at: dest)
         }
+        // Installing a Blender is one big copy off a mounted image, and
+        // `copyItem` reports nothing while it runs. The bytes on the way in
+        // are countable, though: measure the bundle on the image once, then
+        // watch the destination grow. That is a real fraction, not a guess.
+        let total = Self.size(of: appOnDMG)
+        let watcher = Task.detached {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                guard !Task.isCancelled, total > 0 else { continue }
+                // Never quite 1: the copy isn't done until `copyItem`
+                // returns, and a bar sitting full while the row still says
+                // "Installing" reads as a stall.
+                progress(min(0.98, Double(Self.size(of: dest)) / Double(total)))
+            }
+        }
+        defer { watcher.cancel() }
         try FileManager.default.copyItem(at: appOnDMG, to: dest)
         return dest
+    }
+
+    /// Total bytes of a folder tree, counting what each file occupies on
+    /// disk. Errors are skipped rather than thrown: this only feeds a
+    /// progress bar, and a file that vanished mid-walk is not a failure.
+    private static func size(of url: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
+        guard let walk = FileManager.default.enumerator(
+            at: url, includingPropertiesForKeys: Array(keys), options: []
+        ) else { return 0 }
+        var total: Int64 = 0
+        for case let entry as URL in walk {
+            let values = try? entry.resourceValues(forKeys: keys)
+            total += Int64(values?.totalFileAllocatedSize ?? values?.fileAllocatedSize ?? 0)
+        }
+        return total
     }
 
     private func attach(_ dmg: URL) async throws -> String {

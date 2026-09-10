@@ -74,13 +74,15 @@ public final class Installer: Sendable {
             }
         }
         defer { try? FileManager.default.removeItem(at: archiveURL) }
-        await progress(.installing)
+        await progress(.installing(fraction: nil))
 
         let buildID = stripArchiveExtension(build.fileName)
         let destFolder = folder(for: branch).appendingPathComponent(buildID, isDirectory: true)
         try FileManager.default.createDirectory(at: destFolder, withIntermediateDirectories: true)
 
-        let buildPath = try await platform.extract(archive: archiveURL, into: destFolder)
+        let buildPath = try await platform.extract(archive: archiveURL, into: destFolder) { fraction in
+            Task { @MainActor in progress(.installing(fraction: fraction)) }
+        }
 
         let metadata = BuildMetadata(
             buildID: UUID(),

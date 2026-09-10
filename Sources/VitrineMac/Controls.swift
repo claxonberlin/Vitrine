@@ -59,12 +59,15 @@ struct RowCard: View {
 
 /// What a catalogue row's card is showing about its own build.
 enum RowProgress: Equatable {
-    /// Bytes are arriving and how far along they are is known — the bar
-    /// fills from the leading edge to that fraction.
+    /// Bytes are arriving — the bar fills from the leading edge to that
+    /// fraction of the row.
     case downloading(Double)
-    /// Queued, or unpacking after the download: real work with no fraction
-    /// to report, so a band sweeps the row instead of a bar filling it.
-    case working
+    /// Unpacking. Carries a fraction wherever the platform can measure the
+    /// copy, and nil where it can't — then a band sweeps the row instead,
+    /// which is the honest thing to draw when there is no number.
+    case installing(Double?)
+    /// Waiting for a download slot: nothing has moved yet, so nothing fills.
+    case queued
 }
 
 /// A row's card doing duty as its own progress bar.
@@ -89,11 +92,12 @@ struct RowProgressFill<S: Shape>: View {
             let width = geometry.size.width
             switch progress {
             case .downloading(let fraction):
-                bar(Theme.catalogueAccent)
-                    .frame(width: width * max(0, min(1, fraction)))
-                    // Bytes land in bursts; the bar shouldn't.
-                    .animation(.smooth(duration: 0.3), value: fraction)
-            case .working:
+                bar(Theme.catalogueAccent, width: width, to: fraction)
+            case .installing(.some(let fraction)):
+                bar(Theme.blenderBlue, width: width, to: fraction)
+            case .queued:
+                Color.clear
+            case .installing(.none):
                 // Driven off the clock rather than a repeating animation on
                 // a piece of state: the row is rebuilt whenever the store
                 // publishes, and a `repeatForever` that starts on `onAppear`
@@ -106,7 +110,7 @@ struct RowProgressFill<S: Shape>: View {
                     // Enters a band-width off the leading edge and leaves at
                     // the trailing one, so it crosses rather than blinks.
                     let travel = CGFloat(cycle) * (1 + Self.bandWidth) - Self.bandWidth
-                    bar(Theme.blenderBlue)
+                    Theme.blenderBlue.opacity(Self.inkOpacity)
                         .frame(width: width * Self.bandWidth)
                         .offset(x: travel * width)
                 }
@@ -117,14 +121,20 @@ struct RowProgressFill<S: Shape>: View {
         .allowsHitTesting(false)
     }
 
-    /// Solid in the middle and soft at both ends, so the determinate bar's
-    /// leading edge doesn't read as a hard line drawn across the row and the
-    /// sweeping band has no edges at all.
-    private func bar(_ tint: Color) -> some View {
-        LinearGradient(colors: [tint.opacity(0.35), tint.opacity(0.75), tint.opacity(0.35)],
-                       startPoint: .leading,
-                       endPoint: .trailing)
+    /// One flat colour, filled to `fraction` of the row.
+    ///
+    /// The bar is deliberately slow to follow: bytes land in bursts and an
+    /// unpack jumps whenever a big file lands, and a bar that tracked either
+    /// exactly would twitch its way across the row.
+    private func bar(_ tint: Color, width: CGFloat, to fraction: Double) -> some View {
+        tint.opacity(Self.inkOpacity)
+            .frame(width: width * CGFloat(max(0, min(1, fraction))))
+            .animation(.smooth(duration: 0.8), value: fraction)
     }
+
+    /// Strong enough to read as the row's own colour, light enough to leave
+    /// the version and its tags legible on top.
+    private static var inkOpacity: Double { 0.55 }
 }
 
 /// The hover highlight a row inside an expanded group gets: the group paints

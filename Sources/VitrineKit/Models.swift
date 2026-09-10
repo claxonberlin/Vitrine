@@ -227,7 +227,10 @@ public enum DownloadState: Equatable, Sendable {
     case idle
     case queued
     case downloading(received: Int64, total: Int64, bytesPerSecond: Double)
-    case installing
+    /// Unpacking. The fraction is the share of the build's bytes already
+    /// written where the platform can measure that, and nil where it can't —
+    /// the copy on macOS is watched, the `tar` on Linux reports nothing.
+    case installing(fraction: Double?)
     case failed(String)
 
     /// True while a download occupies its slot — used to block duplicate

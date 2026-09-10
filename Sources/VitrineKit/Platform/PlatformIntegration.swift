@@ -49,7 +49,11 @@ public protocol PlatformIntegration: Sendable {
     /// Unpacks a downloaded archive into `destination`, returning the path of
     /// the runnable build — a `.app` bundle on macOS, a build directory on
     /// Linux.
-    func extract(archive: URL, into destination: URL) async throws -> URL
+    /// `progress` is called with the share of the build already written,
+    /// as often as the platform can measure it, and never called at all where
+    /// it can't.
+    func extract(archive: URL, into destination: URL,
+                 progress: @escaping @Sendable (Double) -> Void) async throws -> URL
     /// Finds an installed build inside one of the library's per-build folders.
     func findBuild(in folder: URL) -> URL?
     /// Best-effort version string for a build the user added by hand.
@@ -63,6 +67,14 @@ public protocol PlatformIntegration: Sendable {
     /// passed nil. Best-effort throughout: a read-only `/usr/local/bin` or a
     /// non-GNOME session must degrade, never fail the app.
     func applyStarred(_ build: InstalledBuild?) async
+}
+
+public extension PlatformIntegration {
+    /// For callers that don't watch the unpack — the tests, and any code that
+    /// only wants the resulting path.
+    func extract(archive: URL, into destination: URL) async throws -> URL {
+        try await extract(archive: archive, into: destination, progress: { _ in })
+    }
 }
 
 public enum Platform {

@@ -114,7 +114,7 @@ final class DownloadStateTests: XCTestCase {
     func testIsActive() {
         XCTAssertTrue(DownloadState.queued.isActive)
         XCTAssertTrue(DownloadState.downloading(received: 1, total: 2, bytesPerSecond: 1).isActive)
-        XCTAssertTrue(DownloadState.installing.isActive)
+        XCTAssertTrue(DownloadState.installing(fraction: nil).isActive)
         XCTAssertFalse(DownloadState.idle.isActive)
         XCTAssertFalse(DownloadState.failed("boom").isActive)
     }

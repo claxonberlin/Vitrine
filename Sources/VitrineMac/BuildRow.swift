@@ -227,8 +227,10 @@ struct RemoteRow: View {
         switch store.downloadState(build.id) {
         case .downloading(let received, let total, _):
             return .downloading(total > 0 ? Double(received) / Double(total) : 0)
-        case .queued, .installing:
-            return .working
+        case .installing(let fraction):
+            return .installing(fraction)
+        case .queued:
+            return .queued
         case .idle, .failed:
             return nil
         }
