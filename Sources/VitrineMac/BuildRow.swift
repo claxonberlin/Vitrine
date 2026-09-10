@@ -379,7 +379,7 @@ private struct CardStarChip: View {
     private static let meaning = "Starred — opens .blend files, and puts `blender` on your PATH"
 
     var body: some View {
-        IconView(icon: .star, size: 10)
+        IconView(icon: .star, size: 12)
             .foregroundStyle(.secondary)
             .cardChipBackground()
             .help(Self.meaning)
