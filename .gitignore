@@ -7,3 +7,6 @@ Vitrine.app/
 # Resolved dependencies differ per platform: the macOS build has none, the
 # Fedora build pulls Adwaita. Neither machine can write the other's file.
 Package.resolved
+
+# Built by hand from Vitrine.app for distribution
+*.dmg
