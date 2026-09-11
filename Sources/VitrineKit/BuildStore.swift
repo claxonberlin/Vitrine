@@ -654,6 +654,27 @@ public final class BuildStore {
         }
     }
 
+    /// True for a daily that a newer daily of its own series has already
+    /// replaced — the rollback copy an update leaves standing.
+    ///
+    /// These are the one kind of library card with nothing to offer in its
+    /// trailing corner: a superseded daily has no update (the build that
+    /// would be its update is the row above it), and the only thing anybody
+    /// wants from it once the new one proves itself is the gigabyte back. So
+    /// it says so, rather than hiding that behind the "···" menu.
+    ///
+    /// Custom builds are never included: they aren't Vitrine's to remove.
+    public func isSupersededDaily(_ build: InstalledBuild) -> Bool {
+        guard build.branch == .daily, !build.isCustom, build.hasBuildDate,
+              let key = Version(build.version)?.minorKey else { return false }
+        return installed.contains { other in
+            guard other.id != build.id, other.branch == .daily, !other.isCustom,
+                  other.hasBuildDate,
+                  Version(other.version)?.minorKey == key else { return false }
+            return other.buildDate > build.buildDate
+        }
+    }
+
     /// True while an in-place update for this build is downloading.
     public func isUpdating(_ build: InstalledBuild) -> Bool {
         guard let remoteID = updatingTargets[build.id] else { return false }

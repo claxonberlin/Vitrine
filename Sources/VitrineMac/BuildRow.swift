@@ -125,6 +125,18 @@ struct InstalledRow: View {
                 if let target = store.updateAvailable(for: build) {
                     UpdateButton(build: build, target: target)
                         .transition(.scale.combined(with: .opacity))
+                } else if store.isSupersededDaily(build) {
+                    // The rollback copy of a daily: the newest build of its
+                    // series is already installed above it, so there is
+                    // nothing to update it to — only a gigabyte to reclaim
+                    // once tonight's build has proved itself.
+                    CircleIconButton(icon: .trash,
+                                     label: "Uninstall Blender \(build.version) from \(dateChip)",
+                                     hint: "the newer build of this series stays",
+                                     tint: .red) {
+                        confirmingUninstall = true
+                    }
+                    .transition(.scale.combined(with: .opacity))
                 }
 
                 RowMenu(buildName: build.version) { rowActions }
