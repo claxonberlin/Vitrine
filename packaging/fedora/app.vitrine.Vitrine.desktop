@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Vitrine
+GenericName=Blender Build Manager
+Comment=Browse, install and star Blender builds
+Exec=vitrine
+Icon=app.vitrine.Vitrine
+Terminal=false
+Categories=Graphics;3DGraphics;Development;
+Keywords=Blender;3D;version;build;manager;
+StartupNotify=true
+StartupWMClass=app.vitrine.Vitrine

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.vitrine.Vitrine</id>
+  <name>Vitrine</name>
+  <summary>Blender build manager</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-Unspecified</project_license>
+  <developer id="app.vitrine">
+    <name>Claxon</name>
+  </developer>
+  <description>
+    <p>
+      Vitrine browses the Blender download catalogue, installs the versions you
+      pick, and keeps them side by side in one library. Star a build to make it
+      your main Blender: the one the terminal finds and the one that opens a
+      .blend file.
+    </p>
+    <p>
+      The GNOME front end is written with Adwaita for Swift, over a core shared
+      with the macOS build.
+    </p>
+  </description>
+  <launchable type="desktop-id">app.vitrine.Vitrine.desktop</launchable>
+  <url type="homepage">https://github.com/claxonberlin/Vitrine</url>
+  <url type="bugtracker">https://github.com/claxonberlin/Vitrine/issues</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.0" date="2026-09-11"/>
+  </releases>
+</component>

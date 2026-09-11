@@ -114,6 +114,23 @@ swift build -c release
 [AparokshaUI/adwaita-swift](https://github.com/AparokshaUI/adwaita-swift) and
 links against the system libadwaita through pkg-config.
 
+For an installed app rather than a binary in `.build/`, there is an RPM:
+
+```bash
+sudo dnf install rpm-build rpmdevtools desktop-file-utils libappstream-glib
+./packaging/fedora/build-rpm.sh
+```
+
+It archives HEAD, builds it, and prints the finished package for
+`sudo dnf install`. What lands on disk is the executable and its resource
+bundle together under `/usr/libexec/vitrine`, a `vitrine` wrapper on PATH, and
+the desktop entry, AppStream metadata and icons that put Vitrine in the
+Activities overview.
+
+The spec is not fit for the Fedora repositories, and says so at the top: the
+build resolves adwaita-swift over the network, which Fedora's own build system
+forbids, and the tree carries no licence to declare.
+
 ## Tests
 
 ```bash
@@ -135,6 +152,7 @@ Linux unpack path, which only runs when the tests are built on Linux.
 | `Sources/VitrineKit/BuildStore.swift` | the view model both front ends drive |
 | `Sources/VitrineKit/Platform/` | the per-OS half |
 | `Sources/VitrineMac/Resources/Icons/` | SVG icon sources; the macOS target ships them as-is |
+| `packaging/fedora/` | the RPM spec, desktop entry, AppStream metadata and icons |
 
 Installed builds live under `⟨library⟩/⟨branch⟩/⟨build⟩/`, each with a
 `.vitrine.json` beside it. The layout is self-describing: a fresh launch
