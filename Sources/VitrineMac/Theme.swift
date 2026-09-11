@@ -227,5 +227,23 @@ enum Theme {
         /// What the window opens at on a first launch, which is a different
         /// question from how small it may be dragged.
         static let windowDefaultHeight: CGFloat = 560
+
+        /// How tall the library pane stands with `sections` branch headings
+        /// and `rows` cards in it — the height that would leave no gap at the
+        /// bottom and nothing cut off at it either.
+        ///
+        /// Computed rather than measured: the list is lazy, so it only ever
+        /// knows the height of the rows it has actually built, and every
+        /// piece of the sum is already a number here. It follows the stack
+        /// `LibraryPane` builds — one gap between every element, headings and
+        /// cards alike, and the window margin under the last one.
+        static func libraryHeight(sections: Int, rows: Int) -> CGFloat {
+            let elements = sections + rows
+            guard elements > 0 else { return windowDefaultHeight }
+            return CGFloat(sections) * sectionHeaderHeight
+                + CGFloat(rows) * libraryRowHeight
+                + CGFloat(elements - 1) * rowGap
+                + windowMargin
+        }
     }
 }

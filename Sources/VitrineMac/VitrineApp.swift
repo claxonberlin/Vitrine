@@ -39,7 +39,14 @@ struct VitrineApp: App {
                 .environmentObject(menu)
                 .environmentObject(rowSplash)
                 .background(WindowConfigurator { window in
-                    FrameKeeper.shared.attach(to: window)
+                    // Asked again every time the window is fitted, so the
+                    // answer follows the library as builds come and go.
+                    FrameKeeper.shared.attach(to: window) {
+                        Theme.Metrics.libraryHeight(
+                            sections: bridge.store.installedBranchCount,
+                            rows: bridge.store.installed.count
+                        )
+                    }
                     // AppKit hands first responder to the first control it
                     // finds, so the window opened with a focus ring around
                     // whichever build happened to sit at the top of the list.
@@ -59,6 +66,12 @@ struct VitrineApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("Add Build…") { menu.addingBuild = true }
                     .keyboardShortcut("o", modifiers: .command)
+            }
+            // Declared here and put in its place by `placeSizeToContent`,
+            // which is where the reason it can't simply be declared there is
+            // written down.
+            CommandGroup(after: .windowSize) {
+                Button("Size to Content") { FrameKeeper.shared.sizeToContent() }
             }
             CommandGroup(after: .toolbar) {
                 Button(menu.catalogueShown ? "Hide Catalogue" : "Show Catalogue") {
@@ -179,6 +192,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // once at launch. The app tells us when it is about to update; the
         // handler is a pair of integer comparisons unless the bar has
         // actually changed shape.
+        // The Window menu is only whole while it is open — AppKit fills in
+        // its own items as it is about to be displayed, and "Size to Content"
+        // has to be placed among those. See `placeSizeToContent`.
+        menuOpenObserver = NotificationCenter.default.addObserver(
+            forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main
+        ) { _ in
+            // A turn later, in the run loop mode a tracking menu uses:
+            // AppKit is still arranging its own insertions when the
+            // notification goes out, and anything placed among them before it
+            // has finished is pushed to the end of them.
+            RunLoop.main.perform(inModes: [.eventTracking, .default]) {
+                MainActor.assumeIsolated { Self.placeSizeToContent() }
+            }
+        }
         menuTidyObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willUpdateNotification, object: nil, queue: .main
         ) { _ in
@@ -186,8 +213,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Kept for the lifetime of the app — see the comment where it is made.
+    /// Kept for the lifetime of the app — see the comments where they are
+    /// made.
     private var menuTidyObserver: NSObjectProtocol?
+    private var menuOpenObserver: NSObjectProtocol?
 
     /// Runs on every app update, because SwiftUI rebuilds the menu bar
     /// whenever its commands re-evaluate — it re-adds Edit, and it puts
@@ -217,6 +246,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private static func isNamed(_ item: NSMenuItem, _ name: String) -> Bool {
         item.title == name || item.submenu?.title == name
+    }
+
+    /// The title of the Window menu item that fits the window to its
+    /// content. Ours, so it is never translated and can be matched on.
+    private static let sizingTitle = "Size to Content"
+
+    /// Puts "Size to Content" under Center, among the rest of the items that
+    /// set a window's size.
+    ///
+    /// SwiftUI can't declare it there: it drops the item at the end of the
+    /// Window menu's sizing section, and the items it belongs among — Fill,
+    /// Center, and the rest — aren't in the menu at all until AppKit inserts
+    /// them as the menu opens. Moving SwiftUI's own item into that stretch
+    /// doesn't hold either, since AppKit clears its insertions out again when
+    /// the menu closes and takes anything sitting among them with it. So the
+    /// item is replaced, on each opening, with one of ours in the right
+    /// place.
+    ///
+    /// Center is matched on its action, since its title arrives in the user's
+    /// language. That action is AppKit's own and private, so if it ever
+    /// changes name none of this happens and SwiftUI's item stays where
+    /// SwiftUI put it, which is the same menu a little further down.
+    @MainActor
+    private static func placeSizeToContent() {
+        guard let menu = NSApp.windowsMenu,
+              let center = menu.items.firstIndex(where: {
+                  $0.action == Selector(("_zoomCenter:"))
+              })
+        else { return }
+
+        var at = center + 1
+        for (index, item) in menu.items.enumerated() where item.title == sizingTitle {
+            menu.removeItem(at: index)
+            if index < at { at -= 1 }
+            break
+        }
+        let item = NSMenuItem(title: sizingTitle,
+                              action: #selector(sizeWindowToContent), keyEquivalent: "")
+        item.target = NSApp.delegate
+        menu.insertItem(item, at: at)
+    }
+
+    @MainActor
+    @objc private func sizeWindowToContent() {
+        FrameKeeper.shared.sizeToContent()
     }
 
     /// Trims the menu bar down to what this app can actually do, and puts the
@@ -297,6 +371,9 @@ struct WindowConfigurator: NSViewRepresentable {
 /// minimum size. Setting `frameAutosaveName` ourselves doesn't hold — SwiftUI
 /// assigns its own after the window is configured — so the frame is kept here
 /// under a name that never moves.
+///
+/// The height is not among what it remembers: the window opens at the height
+/// its content needs — see `attach`.
 @MainActor
 final class FrameKeeper {
     static let shared = FrameKeeper()
@@ -304,19 +381,43 @@ final class FrameKeeper {
     private static let key = "MainWindowFrame"
     private var attached = false
 
-    func attach(to window: NSWindow) {
+    /// How tall the content wants to be, asked fresh each time the window is
+    /// fitted rather than measured once at launch.
+    private var contentHeight: (() -> CGFloat)?
+
+    /// The window itself, so the Window menu has something to act on. Weak
+    /// because the window outlives nothing here — it is the app.
+    private weak var window: NSWindow?
+
+    func attach(to window: NSWindow, contentHeight: @escaping () -> CGFloat) {
         guard !attached else { return }
         attached = true
+        self.contentHeight = contentHeight
+        self.window = window
 
-        if let frame = savedFrame() {
+        // The width and the position are the window's own, carried over from
+        // last time. The height isn't: a window whose whole content is a list
+        // of installed builds has one right height, and it is whatever that
+        // list measures today — the same window reopening around a build
+        // added or removed since should stand as tall as the library it is
+        // showing, not as tall as it happened to be left.
+        let remembered = savedFrame()
+        if let frame = remembered {
+            // Opened at the size it was left and fitted a moment later, in
+            // front of whoever opened it, rather than corrected before the
+            // window is on screen. A window that settles says what it did;
+            // one that was already the right size says nothing.
             window.setFrame(frame, display: false)
+            DispatchQueue.main.async { self.sizeToContent() }
         } else {
-            // First launch. The scene's `defaultSize` doesn't survive contact
-            // with a content view this flexible — SwiftUI sizes the window
-            // from the content and lands on the minimum width — so the
-            // opening size is set here instead, where it sticks.
-            window.setContentSize(NSSize(width: Theme.Metrics.windowMinWidth,
-                                         height: Theme.Metrics.windowDefaultHeight))
+            // First launch has nothing to settle from, and no width to carry
+            // over. The scene's `defaultSize` doesn't survive contact with a
+            // content view this flexible — SwiftUI sizes the window from the
+            // content and lands on the minimum width — so the opening size is
+            // set here instead, where it sticks.
+            var frame = window.frame
+            frame.size.width = Theme.Metrics.windowMinWidth
+            window.setFrame(fitted(frame, in: window), display: false)
             window.center()
         }
 
@@ -332,6 +433,44 @@ final class FrameKeeper {
                 }
             }
         }
+    }
+
+    /// Fits the window to its content on demand — the Window menu's own
+    /// item, doing at any moment what opening the window does once.
+    ///
+    /// Animated, because unlike the silent resize at launch this one happens
+    /// while somebody is looking at it, and a window that jumps doesn't say
+    /// what moved. AppKit's own resize animations are timed by
+    /// `animationResizeTime(_:)`, which is documented as a fifth of a second
+    /// for every 150 points of the longest edge — a fitted library usually
+    /// moves further than that, and long enough to drag. 300ms is the whole
+    /// move, however far it goes.
+    func sizeToContent() {
+        guard let window else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.resizeDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            window.animator().setFrame(fitted(window.frame, in: window), display: true)
+        }
+    }
+
+    private static let resizeDuration: TimeInterval = 0.3
+
+    /// A frame at the height its content asks for, hung from its own top
+    /// edge so the window grows and shrinks downward.
+    ///
+    /// Clamped both ways — never shorter than a single library card, never
+    /// taller than the screen it is opening on.
+    private func fitted(_ frame: NSRect, in window: NSWindow) -> NSRect {
+        var frame = frame
+        guard let contentHeight = contentHeight?() else { return frame }
+        let chrome = window.frame.height - window.contentLayoutRect.height
+        let ceiling = window.screen?.visibleFrame.height ?? frame.height
+        let height = min(max(contentHeight, Theme.Metrics.windowMinHeight) + chrome,
+                         ceiling)
+        frame.origin.y += frame.height - height   // hold the top edge
+        frame.size.height = height
+        return frame
     }
 
     /// The stored frame, unless it belongs to a display that is no longer

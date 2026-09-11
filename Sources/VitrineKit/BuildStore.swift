@@ -224,6 +224,14 @@ public final class BuildStore {
 
     public func isLTS(_ version: String) -> Bool { ltsBranches.contains(version: version) }
 
+    /// How many branches have anything installed in them — the number of
+    /// headings the library draws.
+    public var installedBranchCount: Int {
+        BuildBranch.allCases.filter { branch in
+            installed.contains { $0.branch == branch }
+        }.count
+    }
+
     /// The branch's builds, starred first, then newest version, then newest
     /// install.
     public func installed(in branch: BuildBranch) -> [InstalledBuild] {
