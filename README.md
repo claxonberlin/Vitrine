@@ -101,7 +101,7 @@ ad-hoc signature. `./bundle.sh` on its own does a debug build. `swift run`
 also works — the Info.plist is linked into the binary so it launches as a real
 GUI app.
 
-Requires macOS 14 or later. No dependencies.
+Requires macOS 15 or later. No dependencies.
 
 ### Fedora
 

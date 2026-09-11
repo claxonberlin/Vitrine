@@ -55,7 +55,7 @@ let uiLinkerSettings: [LinkerSetting] = [
 
 let package = Package(
     name: "Vitrine",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     dependencies: uiDependencies,
     targets: [
         // The splash paintings ship with the app rather than being scraped

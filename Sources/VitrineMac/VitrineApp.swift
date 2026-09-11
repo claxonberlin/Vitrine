@@ -35,6 +35,7 @@ struct VitrineApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .fullScreenDisabled()
                 .environmentObject(bridge)
                 .environmentObject(menu)
                 .environmentObject(rowSplash)
@@ -67,9 +68,11 @@ struct VitrineApp: App {
                 Button("Add Build…") { menu.addingBuild = true }
                     .keyboardShortcut("o", modifiers: .command)
             }
-            // Declared here and put in its place by `placeSizeToContent`,
-            // which is where the reason it can't simply be declared there is
-            // written down.
+            // The Window menu's sizing section, with Minimize and Zoom —
+            // where an item that sets the window's size belongs. AppKit fills
+            // the rest of that section in itself as the menu opens, and puts
+            // its own items above this one; where they land is its business,
+            // not something to reach in and rearrange.
             CommandGroup(after: .windowSize) {
                 Button("Size to Content") { FrameKeeper.shared.sizeToContent() }
             }
@@ -192,20 +195,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // once at launch. The app tells us when it is about to update; the
         // handler is a pair of integer comparisons unless the bar has
         // actually changed shape.
-        // The Window menu is only whole while it is open — AppKit fills in
-        // its own items as it is about to be displayed, and "Size to Content"
-        // has to be placed among those. See `placeSizeToContent`.
-        menuOpenObserver = NotificationCenter.default.addObserver(
-            forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main
-        ) { _ in
-            // A turn later, in the run loop mode a tracking menu uses:
-            // AppKit is still arranging its own insertions when the
-            // notification goes out, and anything placed among them before it
-            // has finished is pushed to the end of them.
-            RunLoop.main.perform(inModes: [.eventTracking, .default]) {
-                MainActor.assumeIsolated { Self.placeSizeToContent() }
-            }
-        }
         menuTidyObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willUpdateNotification, object: nil, queue: .main
         ) { _ in
@@ -213,10 +202,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Kept for the lifetime of the app — see the comments where they are
-    /// made.
+    /// Kept for the lifetime of the app — see the comment where it is made.
     private var menuTidyObserver: NSObjectProtocol?
-    private var menuOpenObserver: NSObjectProtocol?
 
     /// Runs on every app update, because SwiftUI rebuilds the menu bar
     /// whenever its commands re-evaluate — it re-adds Edit, and it puts
@@ -246,51 +233,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private static func isNamed(_ item: NSMenuItem, _ name: String) -> Bool {
         item.title == name || item.submenu?.title == name
-    }
-
-    /// The title of the Window menu item that fits the window to its
-    /// content. Ours, so it is never translated and can be matched on.
-    private static let sizingTitle = "Size to Content"
-
-    /// Puts "Size to Content" under Center, among the rest of the items that
-    /// set a window's size.
-    ///
-    /// SwiftUI can't declare it there: it drops the item at the end of the
-    /// Window menu's sizing section, and the items it belongs among — Fill,
-    /// Center, and the rest — aren't in the menu at all until AppKit inserts
-    /// them as the menu opens. Moving SwiftUI's own item into that stretch
-    /// doesn't hold either, since AppKit clears its insertions out again when
-    /// the menu closes and takes anything sitting among them with it. So the
-    /// item is replaced, on each opening, with one of ours in the right
-    /// place.
-    ///
-    /// Center is matched on its action, since its title arrives in the user's
-    /// language. That action is AppKit's own and private, so if it ever
-    /// changes name none of this happens and SwiftUI's item stays where
-    /// SwiftUI put it, which is the same menu a little further down.
-    @MainActor
-    private static func placeSizeToContent() {
-        guard let menu = NSApp.windowsMenu,
-              let center = menu.items.firstIndex(where: {
-                  $0.action == Selector(("_zoomCenter:"))
-              })
-        else { return }
-
-        var at = center + 1
-        for (index, item) in menu.items.enumerated() where item.title == sizingTitle {
-            menu.removeItem(at: index)
-            if index < at { at -= 1 }
-            break
-        }
-        let item = NSMenuItem(title: sizingTitle,
-                              action: #selector(sizeWindowToContent), keyEquivalent: "")
-        item.target = NSApp.delegate
-        menu.insertItem(item, at: at)
-    }
-
-    @MainActor
-    @objc private func sizeWindowToContent() {
-        FrameKeeper.shared.sizeToContent()
     }
 
     /// Trims the menu bar down to what this app can actually do, and puts the
@@ -340,6 +282,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+}
+
+extension View {
+    /// Takes full screen off the window: out of the View menu, off the green
+    /// button, which goes back to being a zoom button, and away from the
+    /// keyboard and the Dock's menu.
+    ///
+    /// Nothing here is worth a whole screen. The window is a list of
+    /// installed builds standing exactly as tall as that list, and full
+    /// screen would stretch it over a display with nothing to put in the
+    /// space. The tiling commands are a separate mechanism and still work.
+    ///
+    /// SwiftUI has owned this since macOS 15. Setting the window's own
+    /// `collectionBehavior` is the older way and no longer holds: SwiftUI
+    /// asserts `fullScreenPrimary` over anything set on the window, whenever
+    /// the scene updates.
+    func fullScreenDisabled() -> some View {
+        windowFullScreenBehavior(.disabled)
     }
 }
 
