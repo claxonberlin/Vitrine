@@ -36,7 +36,13 @@ final class RowSplashCatalog: ObservableObject {
     /// What a build's card should paint: the daily backdrop for a daily, and
     /// otherwise its own series' painting once that is in hand.
     func image(for build: InstalledBuild) -> NSImage? {
-        build.branch == .daily ? dailyImage : image(for: build.version)
+        image(branch: build.branch, version: build.version)
+    }
+
+    /// The same choice for a build that isn't in the library yet — a card
+    /// standing for a download in flight wears its artwork from the start.
+    func image(branch: BuildBranch, version: String) -> NSImage? {
+        branch == .daily ? dailyImage : image(for: version)
     }
 
     /// The artwork for a version's X.Y series, if it is already in hand.

@@ -187,6 +187,70 @@ public struct RemoteBuild: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
+/// A build that has been asked for but isn't in the library yet.
+///
+/// The library lists one of these the moment a download starts, so a new
+/// install appears as a card straight away and fills in as it arrives,
+/// rather than turning up only once everything is unpacked. An in-place
+/// update makes none of these: the card it belongs to is already there.
+public struct PendingInstall: Identifiable, Hashable, Sendable {
+    public let build: RemoteBuild
+    public let branch: BuildBranch
+
+    public init(build: RemoteBuild, branch: BuildBranch) {
+        self.build = build
+        self.branch = branch
+    }
+
+    public var id: String { build.id }
+}
+
+/// One line of a branch in the library: a build that is installed, or one
+/// that is on its way there. Both are ordered by the same rule, so a
+/// download sits where it will live from the moment it starts.
+public enum LibraryRow: Identifiable, Hashable, Sendable {
+    case installed(InstalledBuild)
+    case pending(PendingInstall)
+
+    public var id: String {
+        switch self {
+        case .installed(let build): return build.id.uuidString
+        case .pending(let pending): return pending.id
+        }
+    }
+
+    /// Starred first, then newest version, then newest vintage — the order
+    /// the library has always listed installed builds in. A pending card is
+    /// never starred, and carries the version and release date the archive
+    /// published for it.
+    public func sortsBefore(_ other: LibraryRow) -> Bool {
+        if starred != other.starred { return starred }
+        if version != other.version { return version > other.version }
+        return vintage > other.vintage
+    }
+
+    private var starred: Bool {
+        switch self {
+        case .installed(let build): return build.pinned
+        case .pending: return false
+        }
+    }
+
+    private var version: Version {
+        switch self {
+        case .installed(let build): return Version(build.version) ?? .zero
+        case .pending(let pending): return pending.build.parsedVersion
+        }
+    }
+
+    private var vintage: Date {
+        switch self {
+        case .installed(let build): return build.buildDate
+        case .pending(let pending): return pending.build.date
+        }
+    }
+}
+
 public struct InstalledBuild: Identifiable, Hashable, Codable, Sendable {
     /// Risk id marking externally-managed builds the user pointed Vitrine at.
     public static let customRiskID = "custom"

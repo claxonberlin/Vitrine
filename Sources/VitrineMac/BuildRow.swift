@@ -60,9 +60,21 @@ struct InstalledRow: View {
                 }
             }
             .clipShape(shape)
-            .saturation(inactive ? 0 : 1)
+            // The painting steps back while a job runs on the card, the same
+            // way it does when the window loses focus: the colour on the card
+            // is then the bar's, and the artwork is what it crosses.
+            .saturation(inactive || updateProgress != nil ? 0 : 1)
             .opacity(inactive ? 0.6 : 1)
             .animation(.smooth(duration: 0.2), value: inactive)
+            .animation(.smooth(duration: 0.3), value: updateProgress != nil)
+            // While a replacement for this build is coming down, the card
+            // itself is the progress bar — a flat colour creeping across the
+            // painting, orange for the download and blue for the unpack,
+            // exactly as a catalogue row fills, and stated rather than
+            // translucent. The row's own controls and chips still sit above.
+            .overlay { if let progress = updateProgress {
+                RowProgressFill(progress: progress, shape: shape, overArtwork: true)
+            } }
             // Decoration, and it must never take a click. `scaledToFill` sizes
             // a 16:9 painting to ~450×253 inside a 450×70 row, so it hangs
             // ~90pt past the card top and bottom; `clipShape` above hides that
@@ -76,6 +88,12 @@ struct InstalledRow: View {
 
     /// The app is in the background — no window of it is key.
     private var inactive: Bool { activeState == .inactive }
+
+    /// What the card paints over its artwork: the progress of the update
+    /// replacing this build, and nothing at rest.
+    private var updateProgress: RowProgress? {
+        RowProgress(store.updateState(for: build))
+    }
 
     private var content: some View {
         HStack(spacing: Theme.Metrics.libraryRowSpacing) {
@@ -252,16 +270,7 @@ struct RemoteRow: View {
     /// What the row's own card is drawing behind all of this — see
     /// `RowProgressFill`.
     private var progress: RowProgress? {
-        switch store.downloadState(build.id) {
-        case .downloading(let received, let total):
-            return .downloading(total > 0 ? Double(received) / Double(total) : 0)
-        case .installing(let fraction):
-            return .installing(fraction)
-        case .queued:
-            return .queued
-        case .idle, .failed:
-            return nil
-        }
+        RowProgress(store.downloadState(build.id))
     }
 
     @ViewBuilder
@@ -539,5 +548,134 @@ private struct LaunchButton: View {
         .cardGlass(tint: Theme.blenderBlue, in: Capsule(style: .continuous))
         .help("Open Blender \(version)")
         .accessibilityLabel("Open Blender \(version)")
+    }
+}
+
+/// A library card for a build that is still coming down.
+///
+/// The card is placed the moment the download is asked for, so an install
+/// appears where it will live rather than only in the catalogue, and it
+/// carries the same flat progress fill an update does: Blender's orange
+/// creeping across the splash painting while the file arrives, its blue
+/// while the build is unpacked. Nothing here launches — there is nothing to
+/// launch yet — so the version sits on a plain plaque instead of a button,
+/// and the one control is the same Stop the catalogue offers.
+struct PendingRow: View {
+    @EnvironmentObject private var bridge: StoreBridge
+    @EnvironmentObject private var splash: RowSplashCatalog
+    @Environment(\.controlActiveState) private var activeState
+    private var store: BuildStore { bridge.store }
+    let pending: PendingInstall
+
+    private var build: RemoteBuild { pending.build }
+
+    var body: some View {
+        content
+            .padding(.horizontal, Theme.Metrics.libraryRowInset)
+            .frame(maxWidth: .infinity)
+            .frame(height: Theme.Metrics.libraryRowHeight)
+            .background(rowBackground)
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Metrics.libraryCorner,
+                                           style: .continuous))
+            .help(build.fileName)
+            // Same as a library row: the artwork is fetched from a task, never
+            // from `body` — see `RowSplashCatalog`.
+            .task(id: build.version) {
+                guard pending.branch != .daily else { return }
+                await splash.load(for: build.version)
+            }
+    }
+
+    @ViewBuilder
+    private var rowBackground: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Metrics.libraryCorner, style: .continuous)
+        Theme.cardPlaceholder
+            .overlay {
+                if let art = splash.image(branch: pending.branch, version: build.version) {
+                    Image(nsImage: art)
+                        .resizable()
+                        .scaledToFill()
+                }
+            }
+            .clipShape(shape)
+            // Grey for as long as the build is on its way, exactly as an
+            // updating card is: the painting arrives with the build.
+            .saturation(inactive || progress != nil ? 0 : 1)
+            .opacity(inactive ? 0.6 : 1)
+            .animation(.smooth(duration: 0.2), value: inactive)
+            .overlay { if let progress {
+                RowProgressFill(progress: progress, shape: shape, overArtwork: true)
+            } }
+            .allowsHitTesting(false)
+    }
+
+    private var inactive: Bool { activeState == .inactive }
+
+    private var progress: RowProgress? {
+        RowProgress(store.downloadState(build.id))
+    }
+
+    private var content: some View {
+        HStack(spacing: Theme.Metrics.libraryRowSpacing) {
+            versionPlaque
+
+            VStack(alignment: .leading, spacing: Theme.Metrics.cardChipGap) {
+                ChipLine(chips: tagChips)
+                ChipLine(chips: [.text(statusWord)])
+            }
+            .padding(.vertical, Theme.Metrics.cardChipGap)
+            .frame(height: Theme.Metrics.launchButtonSize.height, alignment: .leading)
+            .layoutPriority(-1)
+
+            Spacer(minLength: Theme.Metrics.libraryRowSpacing)
+
+            if case .downloading = store.downloadState(build.id) {
+                PillButton(title: "Stop", tint: .red,
+                           help: "Cancel the Blender \(build.version) download") {
+                    withAnimation(.smooth(duration: 0.25)) { store.cancelDownload(build) }
+                }
+            }
+        }
+    }
+
+    /// The version, in the Launch button's own shape and size so the card
+    /// keeps a library row's proportions — but flat and inert, because
+    /// pressing it could do nothing until the build lands.
+    private var versionPlaque: some View {
+        Text(build.version)
+            .font(Theme.openDigits(size: 21, weight: .bold))
+            .fontWidth(.condensed)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .foregroundStyle(.white)
+            .frame(width: Theme.Metrics.launchButtonSize.width,
+                   height: Theme.Metrics.launchButtonSize.height)
+            .cardGlass(tint: Theme.blenderBlue.opacity(0.5), in: Capsule(style: .continuous))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Blender \(build.version)")
+            .accessibilityValue(statusWord)
+    }
+
+    private var tagChips: [ChipSpec] {
+        let isLTS = store.isLTS(build.version)
+        var chips: [ChipSpec] = []
+        if let risk = build.riskLabel(besideLTS: isLTS) { chips.append(.text(risk)) }
+        if pending.branch == .daily, let hash = build.hash {
+            chips.append(.text(hash, label: "Build \(hash)"))
+        }
+        if isLTS { chips.append(BadgeRow.ltsChip) }
+        return chips
+    }
+
+    /// The one word under the tags, where an installed card carries its date:
+    /// which half of the job is running. How far along it is the card itself
+    /// already says.
+    private var statusWord: String {
+        switch store.downloadState(build.id) {
+        case .downloading: return "Downloading"
+        case .installing: return "Installing"
+        case .failed: return "Failed"
+        case .queued, .idle: return "Queued"
+        }
     }
 }

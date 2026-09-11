@@ -68,6 +68,22 @@ enum RowProgress: Equatable {
     case installing(Double?)
     /// Waiting for a download slot: nothing has moved yet, so nothing fills.
     case queued
+
+    /// What a card should draw for a build in this state, and nil where
+    /// there is nothing to draw — every card that paints progress reads it
+    /// the same way.
+    init?(_ state: DownloadState) {
+        switch state {
+        case .downloading(let received, let total):
+            self = .downloading(total > 0 ? Double(received) / Double(total) : 0)
+        case .installing(let fraction):
+            self = .installing(fraction)
+        case .queued:
+            self = .queued
+        case .idle, .failed:
+            return nil
+        }
+    }
 }
 
 /// A row's card doing duty as its own progress bar.
@@ -81,6 +97,11 @@ enum RowProgress: Equatable {
 struct RowProgressFill<S: Shape>: View {
     let progress: RowProgress
     let shape: S
+    /// Set on a library card, whose card is a splash painting rather than a
+    /// flat grey. Translucent ink reads as a tint over artwork instead of as
+    /// progress, so there the colour is stated outright and the painting is
+    /// what gives way — the card desaturates behind it while the job runs.
+    var overArtwork: Bool = false
 
     /// How much of the row the sweeping band covers, and how long one pass
     /// across it takes.
@@ -101,7 +122,7 @@ struct RowProgressFill<S: Shape>: View {
                 // one. The wash says "installing" the moment the state
                 // changes; the bar says how far along it is.
                 ZStack(alignment: .leading) {
-                    Theme.blenderBlue.opacity(Self.washOpacity)
+                    Theme.blenderBlue.opacity(washOpacity)
                     bar(Theme.blenderBlue, width: width, to: fraction)
                 }
             case .queued:
@@ -119,7 +140,7 @@ struct RowProgressFill<S: Shape>: View {
                     // Enters a band-width off the leading edge and leaves at
                     // the trailing one, so it crosses rather than blinks.
                     let travel = CGFloat(cycle) * (1 + Self.bandWidth) - Self.bandWidth
-                    Theme.blenderBlue.opacity(Self.inkOpacity)
+                    Theme.blenderBlue.opacity(inkOpacity)
                         .frame(width: width * Self.bandWidth)
                         .offset(x: travel * width)
                 }
@@ -136,18 +157,20 @@ struct RowProgressFill<S: Shape>: View {
     /// unpack jumps whenever a big file lands, and a bar that tracked either
     /// exactly would twitch its way across the row.
     private func bar(_ tint: Color, width: CGFloat, to fraction: Double) -> some View {
-        tint.opacity(Self.inkOpacity)
+        tint.opacity(inkOpacity)
             .frame(width: width * CGFloat(max(0, min(1, fraction))))
             .animation(.smooth(duration: 0.8), value: fraction)
     }
 
-    /// Strong enough to read as the row's own colour, light enough to leave
-    /// the version and its tags legible on top.
-    private static var inkOpacity: Double { 0.55 }
+    /// On a catalogue row: strong enough to read as the row's own colour,
+    /// light enough to leave the version and its tags legible on top. On a
+    /// library card it covers the painting outright, because anything less
+    /// looked like a wash over the artwork rather than a bar crossing it.
+    private var inkOpacity: Double { overArtwork ? 1 : 0.55 }
 
     /// The ground the install bar fills over — enough to colour the row,
     /// not enough to be mistaken for progress.
-    private static var washOpacity: Double { 0.16 }
+    private var washOpacity: Double { overArtwork ? 0.38 : 0.16 }
 }
 
 /// What a row inside an expanded group draws behind itself: its download
@@ -320,8 +343,15 @@ struct CircleIconButton: View {
     }
 }
 
-/// In-place update for an installed build. Swaps to a spinner while the
-/// replacement downloads.
+/// In-place update for an installed build. Steps aside once the replacement
+/// starts coming down.
+///
+/// No spinner in its place any more. The card behind it is the progress bar
+/// while an update runs — the same orange-then-blue fill a catalogue row
+/// takes, only over the release's splash painting — and a spinner beside it
+/// said the same thing a second time, less precisely. The space the button
+/// occupied is held so nothing else in the row shifts for the minute or two
+/// an update takes.
 struct UpdateButton: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
@@ -330,9 +360,7 @@ struct UpdateButton: View {
 
     var body: some View {
         if store.isUpdating(build) {
-            ProgressView()
-                .controlSize(.small)
-                .scaleEffect(0.7)
+            Color.clear
                 .frame(width: Theme.Metrics.actionHeight,
                        height: Theme.Metrics.actionHeight)
                 .accessibilityLabel("Updating Blender \(build.version) to \(target.version)")

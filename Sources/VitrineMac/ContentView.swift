@@ -247,7 +247,7 @@ struct LibraryPane: View {
     private var store: BuildStore { bridge.store }
 
     var body: some View {
-        if store.installed.isEmpty {
+        if store.libraryIsEmpty {
             emptyState
         } else {
             ScrollView {
@@ -258,6 +258,9 @@ struct LibraryPane: View {
                 }
                 .padding(.horizontal, Theme.Metrics.windowMargin)
                 .padding(.bottom, Theme.Metrics.windowMargin)
+                // The card for a new install appears and leaves as a card,
+                // rather than the list jumping by a row's height twice.
+                .animation(.smooth(duration: 0.3), value: store.pendingInstalls)
             }
             .scrollContentBackground(.hidden)
             // The system's own soft scroll-edge dissolve, blurring rows as
@@ -315,11 +318,19 @@ struct LibraryPane: View {
     /// empty heading would just be noise.
     @ViewBuilder
     private func section(_ branch: BuildBranch) -> some View {
-        let items = store.installed(in: branch)
-        if !items.isEmpty {
+        let rows = store.libraryRows(in: branch)
+        if !rows.isEmpty {
             SectionHeader(title: branch.title, indent: Theme.Metrics.libraryCorner)
-            ForEach(items) { item in
-                InstalledRow(build: item)
+            // Installed builds and arrivals in one list, so a download sits
+            // where it will live from the start — see `libraryRows(in:)`.
+            ForEach(rows) { row in
+                switch row {
+                case .installed(let build):
+                    InstalledRow(build: build)
+                case .pending(let pending):
+                    PendingRow(pending: pending)
+                        .transition(.scale(scale: 0.96).combined(with: .opacity))
+                }
             }
         }
     }

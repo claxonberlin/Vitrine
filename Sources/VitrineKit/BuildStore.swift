@@ -37,8 +37,15 @@ public final class BuildStore {
     public private(set) var downloads: [String: DownloadState] = [:] { didSet { notify() } }
 
     /// installed.id → remote id of the build currently downloading as an
-    /// in-place upgrade. Drives the per-row spinner beside an installed build.
+    /// in-place upgrade. Drives the progress the card itself paints while its
+    /// replacement comes down.
     public private(set) var updatingTargets: [UUID: String] = [:] { didSet { notify() } }
+
+    /// Builds being installed for the first time, in the order they were
+    /// asked for. The library lists a card for each straight away, so a new
+    /// install is visible where it will live rather than only in the
+    /// catalogue. An in-place update adds nothing here — see `updatingTargets`.
+    public private(set) var pendingInstalls: [PendingInstall] = [] { didSet { republish() } }
 
     /// Catalogue group expansion, keyed by minor key (e.g. "4.5"). Lives here
     /// rather than in a view so both front ends fold groups the same way and
@@ -76,11 +83,13 @@ public final class BuildStore {
     /// instead, and dropped by `republish()` when their inputs move.
     private var groupedRemote: [BuildBranch: [RemoteBuildGroup]] = [:]
     private var installedByBranch: [BuildBranch: [InstalledBuild]] = [:]
+    private var libraryRowsByBranch: [BuildBranch: [LibraryRow]] = [:]
 
     /// The `didSet` for a property the derived lists are built from.
     private func republish() {
         groupedRemote.removeAll(keepingCapacity: true)
         installedByBranch.removeAll(keepingCapacity: true)
+        libraryRowsByBranch.removeAll(keepingCapacity: true)
         notify()
     }
 
@@ -336,6 +345,38 @@ public final class BuildStore {
 
     public func downloadState(_ id: String) -> DownloadState { downloads[id] ?? .idle }
 
+    /// How far along the in-place update of this build is, or `.idle` when
+    /// none is running — what the card paints over its own artwork.
+    public func updateState(for build: InstalledBuild) -> DownloadState {
+        guard let remoteID = updatingTargets[build.id] else { return .idle }
+        return downloadState(remoteID)
+    }
+
+    /// The first-time installs filed under a branch.
+    public func pending(in branch: BuildBranch) -> [PendingInstall] {
+        pendingInstalls.filter { $0.branch == branch }
+    }
+
+    /// Everything a branch shows in the library, in one list: the builds
+    /// installed there and the ones on their way, ordered together.
+    ///
+    /// A card that is downloading takes the place it will keep once it lands,
+    /// rather than appearing at the head of the branch and then jumping to
+    /// its real position on arrival — the version and vintage that decide
+    /// where it belongs are both known before the first byte does.
+    public func libraryRows(in branch: BuildBranch) -> [LibraryRow] {
+        if let cached = libraryRowsByBranch[branch] { return cached }
+        let rows = (installed(in: branch).map(LibraryRow.installed)
+                    + pending(in: branch).map(LibraryRow.pending))
+            .sorted { $0.sortsBefore($1) }
+        libraryRowsByBranch[branch] = rows
+        return rows
+    }
+
+    /// True when there is nothing to show in the library at all: nothing
+    /// installed, and nothing on its way either.
+    public var libraryIsEmpty: Bool { installed.isEmpty && pendingInstalls.isEmpty }
+
     // MARK: - Install / cancel / launch
 
     public func install(_ build: RemoteBuild, into branch: BuildBranch) {
@@ -357,7 +398,12 @@ public final class BuildStore {
                               branch: BuildBranch,
                               replacing old: InstalledBuild? = nil) {
         guard downloads[target.id]?.isActive != true else { return }
-        if let old { updatingTargets[old.id] = target.id }
+        if let old {
+            updatingTargets[old.id] = target.id
+        } else if !pendingInstalls.contains(where: { $0.id == target.id }) {
+            // The card goes into the library before the first byte does.
+            pendingInstalls.append(PendingInstall(build: target, branch: branch))
+        }
         downloads[target.id] = .queued
         downloadTasks[target.id] = Task { [weak self] in
             guard let self else { return }
@@ -404,6 +450,7 @@ public final class BuildStore {
         downloads[target.id] = nil
         downloadTasks[target.id] = nil
         if let old { updatingTargets[old.id] = nil }
+        pendingInstalls.removeAll { $0.id == target.id }
     }
 
     public func cancelDownload(_ build: RemoteBuild) {
@@ -411,6 +458,7 @@ public final class BuildStore {
         downloadTasks[build.id]?.cancel()
         downloadTasks[build.id] = nil
         downloads[build.id] = nil
+        pendingInstalls.removeAll { $0.id == build.id }
     }
 
     public func launch(_ build: InstalledBuild) {
