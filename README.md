@@ -2,41 +2,27 @@
 
 *Designed by a human, programmed by Claude.*
 
-A Blender build manager for macOS and Fedora. Browse the catalogue on
-blender.org, install stable, daily or experimental builds side by side, and
-star the one the desktop should treat as *the* Blender.
-
-## A word on quality
+A Blender build manager for macOS and Fedora. Browse and install different versions. Star a single version to use as your main Blender, used by the terminal and opened with .blend files.
 
 I do not consider this quality software. It does what I need it to do, and I
-use it, but it has had no testing worth the name beyond my own machine and my
-own habits: no test matrix, no error handling I would defend, no hardening
-against anything blender.org might change tomorrow. Treat it as a UI/UX proof
+use it, but it has had no testing worth mentioning beyond my own machine and my
+own habits. No test matrix, no error handling I would defend, no hardening
+against anything Blender Foundation might change tomorrow. Treat it as a UI/UX proof
 of concept that happens to work, not as a tool you should rely on. The ideas
-about how a build manager could look and feel are the part I stand behind.
+about how a version manager could look and feel is what I stand behind.
 
 ## Interface
 
 <details>
 <summary>Screenshots (macOS)</summary>
 
-The library: daily and stable side by side, each card wearing its release's
-splash.
-
 ![The Vitrine library, with a daily build above the installed stable releases](docs/library.png)
 
-The catalogue, floating over the library rather than splitting the window.
-
 ![The catalogue open over the library, with a series expanded](docs/catalogue.png)
-
-A smaller window, showing only what is installed.
 
 ![A narrower Vitrine window listing three installed stable builds](docs/starred.png)
 
 </details>
-
-There is a screen recording too, at
-[`docs/vitrine-demo.mp4`](docs/vitrine-demo.mp4).
 
 ## Shape of the project
 
