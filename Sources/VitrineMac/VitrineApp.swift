@@ -74,7 +74,12 @@ struct VitrineApp: App {
             // its own items above this one; where they land is its business,
             // not something to reach in and rearrange.
             CommandGroup(after: .windowSize) {
+                // ⌘F, which in most apps is Find. There is nothing to search
+                // here — one screen of cards, no text anywhere in the window
+                // — so the most reachable key in the app is free, and fitting
+                // the window to its library is the thing worth reaching for.
                 Button("Size to Content") { FrameKeeper.shared.sizeToContent() }
+                    .keyboardShortcut("f", modifiers: .command)
             }
             CommandGroup(after: .toolbar) {
                 Button(menu.catalogueShown ? "Hide Catalogue" : "Show Catalogue") {
