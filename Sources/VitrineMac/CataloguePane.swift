@@ -21,6 +21,11 @@ struct CataloguePane: View {
     @EnvironmentObject private var bridge: StoreBridge
     private var store: BuildStore { bridge.store }
 
+    /// The empty stretch down the leading edge, where the library's sliver
+    /// shows through. The page itself spans the window so its scroll edge
+    /// effect does too; only its content is kept clear of this.
+    var leadingInset: CGFloat = 0
+
     var body: some View {
         content
             .overlay(alignment: .topTrailing) {
@@ -48,6 +53,7 @@ struct CataloguePane: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.leading, leadingInset)
         } else if store.catalogueIsEmpty {
             VStack(spacing: 6) {
                 Text("Nothing to show")
@@ -59,6 +65,7 @@ struct CataloguePane: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.leading, leadingInset)
         } else {
             list
         }
@@ -78,6 +85,7 @@ struct CataloguePane: View {
             .padding(.bottom, Theme.Metrics.windowMargin)
             .animation(.smooth(duration: 0.28), value: store.expandedMinorKeys)
         }
+        .contentMargins(.leading, leadingInset, for: .scrollContent)
     }
 
     @ViewBuilder

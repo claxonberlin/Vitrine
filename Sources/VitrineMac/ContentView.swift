@@ -86,10 +86,15 @@ struct ContentView: View {
                 // offset. A conditional view with a `move` transition only
                 // animated the way in: SwiftUI tore the pane down on the way
                 // out before the slide could play, so hiding the catalogue
-                // snapped. Parked, it sits exactly its own width past the
-                // trailing edge, so the window already clips it away.
-                CataloguePane()
-                    .frame(width: travel)
+                // snapped.
+                // The page is the window's full width, with its rows kept to
+                // the trailing part: a scroll view's edge effect only spans
+                // the scroll view itself, so this is what carries the title
+                // bar's glass across the whole window rather than stopping
+                // where the rows begin. Parked, only its empty leading margin
+                // is still inside the window, and it takes no clicks there.
+                CataloguePane(leadingInset: geometry.size.width - travel)
+                    .frame(width: geometry.size.width)
                     .frame(maxHeight: .infinity)
                     .offset(x: showingCatalogue ? 0 : travel)
                     .allowsHitTesting(showingCatalogue)
