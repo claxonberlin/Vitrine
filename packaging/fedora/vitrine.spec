@@ -20,7 +20,7 @@
 %global __brp_strip %{nil}
 
 Name:           vitrine
-Version:        1.0
+Version:        1.1
 Release:        1%{?dist}
 Summary:        Blender build manager
 
@@ -102,5 +102,8 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{appid}.metai
 %{_datadir}/icons/hicolor/*/apps/%{appid}.png
 
 %changelog
+* Tue Sep 15 2026 Claxon <claxon@users.noreply.github.com> - 1.1-1
+- Update to 1.1.
+
 * Fri Sep 11 2026 Claxon <claxon@users.noreply.github.com> - 1.0-1
 - First Fedora package.
