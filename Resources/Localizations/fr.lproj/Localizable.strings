@@ -5,6 +5,8 @@
 "Add Build…" = "Ajouter une build…";
 "Show Catalogue" = "Afficher le catalogue";
 "Hide Catalogue" = "Masquer le catalogue";
+"Show Tags" = "Afficher les tags";
+"Hide Tags" = "Masquer les tags";
 "Reload Catalogue" = "Recharger le catalogue";
 "Size to Content" = "Ajuster au contenu";
 "Oldest Version Listed" = "Version la plus ancienne affichée";

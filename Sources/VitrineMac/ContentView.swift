@@ -91,12 +91,17 @@ struct ContentView: View {
                 // the trailing part: a scroll view's edge effect only spans
                 // the scroll view itself, so this is what carries the title
                 // bar's glass across the whole window rather than stopping
-                // where the rows begin. Parked, only its empty leading margin
-                // is still inside the window, and it takes no clicks there.
-                CataloguePane(leadingInset: geometry.size.width - travel)
+                // where the rows begin.
+                // Parked, the page sits wholly past the trailing edge: left
+                // inside the window, its empty margin overlapped the library
+                // under the title bar and drew a second, thicker stretch of
+                // glass there. The margin closes up as the page leaves, so
+                // offset plus margin — where the rows begin — still moves by
+                // exactly `travel`, in step with the library.
+                CataloguePane(leadingInset: showingCatalogue ? geometry.size.width - travel : 0)
                     .frame(width: geometry.size.width)
                     .frame(maxHeight: .infinity)
-                    .offset(x: showingCatalogue ? 0 : travel)
+                    .offset(x: showingCatalogue ? 0 : geometry.size.width)
                     .allowsHitTesting(showingCatalogue)
                     .accessibilityHidden(!showingCatalogue)
             }
@@ -131,8 +136,18 @@ struct ContentView: View {
             Button {
                 menu.catalogueShown.toggle()
             } label: {
-                Label(showingCatalogue ? "Hide Catalogue" : "Show Catalogue", systemImage: "book")
-                    .symbolVariant(showingCatalogue ? .fill : .none)
+                // An open book invites opening the catalogue; once it is open,
+                // the book closes, which is what pressing it again will do.
+                Label {
+                    Text(showingCatalogue ? "Hide Catalogue" : "Show Catalogue")
+                } icon: {
+                    Image(systemName: showingCatalogue ? "book.closed.fill" : "book")
+                        .contentTransition(.symbolEffect(.replace))
+                        // The open book is 4pt wider than the closed one; a
+                        // slot as wide as the open book keeps the button from
+                        // changing width when they swap.
+                        .frame(width: 21)
+                }
             }
             .help(showingCatalogue ? "Hide the catalogue" : "Show the catalogue")
         }

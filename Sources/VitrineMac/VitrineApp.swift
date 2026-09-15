@@ -22,6 +22,7 @@ struct VitrineApp: App {
     /// one of those few values actually moves.
     private let bridge: StoreBridge
     private let rowSplash = RowSplashCatalog()
+    @AppStorage(ViewPreferences.showsLibraryTags) private var showsLibraryTags = true
     @ObservedObject private var menu: MenuState
     private var store: BuildStore { bridge.store }
 
@@ -83,6 +84,10 @@ struct VitrineApp: App {
                     menu.catalogueShown.toggle()
                 }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
+
+                Button(showsLibraryTags ? "Hide Tags" : "Show Tags") {
+                    showsLibraryTags.toggle()
+                }
 
                 Button("Reload Catalogue") {
                     Task { await store.refreshAll() }

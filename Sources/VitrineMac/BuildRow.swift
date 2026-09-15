@@ -13,6 +13,7 @@ struct InstalledRow: View {
     let build: InstalledBuild
 
     @State private var confirmingUninstall = false
+    @AppStorage(ViewPreferences.showsLibraryTags) private var showsTags = true
 
     var body: some View {
         content
@@ -106,15 +107,17 @@ struct InstalledRow: View {
             // the gap from the top chip to the top of the Launch button, and
             // the gap from the bottom chip to its bottom are all the same
             // `cardChipGap` — 2·chipHeight + 3·gap == the button's height.
-            VStack(alignment: .leading, spacing: Theme.Metrics.cardChipGap) {
-                ChipLine(chips: tagChips)
-                ChipLine(chips: [.text(dateChip, label: dateDescription)])
+            if showsTags {
+                VStack(alignment: .leading, spacing: Theme.Metrics.cardChipGap) {
+                    ChipLine(chips: tagChips)
+                    ChipLine(chips: [.text(dateChip, label: dateDescription)])
+                }
+                .padding(.vertical, Theme.Metrics.cardChipGap)
+                .frame(height: Theme.Metrics.launchButtonSize.height, alignment: .leading)
+                // Lowest priority in the row: at the minimum window size the
+                // chips give way before the fixed-size controls do.
+                .layoutPriority(-1)
             }
-            .padding(.vertical, Theme.Metrics.cardChipGap)
-            .frame(height: Theme.Metrics.launchButtonSize.height, alignment: .leading)
-            // Lowest priority in the row: at the minimum window size the
-            // chips give way before the fixed-size controls do.
-            .layoutPriority(-1)
 
             Spacer(minLength: Theme.Metrics.libraryRowSpacing)
 
@@ -578,6 +581,7 @@ struct PendingRow: View {
     @Environment(\.controlActiveState) private var activeState
     private var store: BuildStore { bridge.store }
     let pending: PendingInstall
+    @AppStorage(ViewPreferences.showsLibraryTags) private var showsTags = true
 
     private var build: RemoteBuild { pending.build }
 
@@ -632,7 +636,9 @@ struct PendingRow: View {
             versionPlaque
 
             VStack(alignment: .leading, spacing: Theme.Metrics.cardChipGap) {
-                ChipLine(chips: tagChips)
+                if showsTags {
+                    ChipLine(chips: tagChips)
+                }
                 ChipLine(chips: [.text(statusWord)])
             }
             .padding(.vertical, Theme.Metrics.cardChipGap)

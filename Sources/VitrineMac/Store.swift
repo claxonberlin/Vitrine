@@ -67,3 +67,10 @@ final class MenuState: ObservableObject {
         if minVersion != store.minVersionString { minVersion = store.minVersionString }
     }
 }
+
+/// UserDefaults keys for view preferences the menu bar and the views share.
+enum ViewPreferences {
+    /// Whether library cards show their tags and date. A card still coming
+    /// down keeps its status chip, the only word saying what it is doing.
+    static let showsLibraryTags = "showsLibraryTags"
+}
