@@ -12,9 +12,8 @@ import VitrineKit
 /// window's own width.
 ///
 /// There's no title here any more — with the library pushed aside rather
-/// than merely covered, the toolbar's own title stands in for it (see
-/// `ContentView.titleLabel`), the way a real second page would rename the
-/// window instead of relabelling itself.
+/// than merely covered, the window's own title stands in for it, the way a
+/// real second page would rename the window instead of relabelling itself.
 ///
 /// The list is fetched once when the window opens; there is nothing a second
 /// fetch would tell you that the first didn't. ⌘R is there for the rare case.
@@ -79,15 +78,6 @@ struct CataloguePane: View {
             .padding(.bottom, Theme.Metrics.windowMargin)
             .animation(.smooth(duration: 0.28), value: store.expandedMinorKeys)
         }
-        .scrollContentBackground(.hidden)
-        // No scroll-edge effect here, where the library takes the soft
-        // dissolve. This page is narrower than the window, so the title bar
-        // has no full-width scroll view to blur against and falls back to a
-        // plain hairline — the flat line that showed under the title while
-        // the catalogue was open. Nothing is lost: these rows pass under an
-        // opaque stretch of the window's own ground, with no artwork behind
-        // them for a dissolve to reveal.
-        .scrollEdgeEffectHiddenCompat(for: .top)
     }
 
     @ViewBuilder

@@ -36,10 +36,7 @@ let uiLinkerSettings: [LinkerSetting] = []
 let uiPath = "Sources/VitrineMac"
 let uiDependencies: [Package.Dependency] = []
 let uiTargetDependencies: [Target.Dependency] = ["VitrineKit"]
-// The icons ship as SVG and are tinted at draw time: AppKit reads SVG into a
-// vector image rep, so there is no rasterisation step and one file covers
-// light, dark and on-accent.
-let uiResources: [Resource] = [.copy("Resources/Icons")]
+let uiResources: [Resource] = []
 let uiSwiftSettings: [SwiftSetting] = []
 let uiLinkerSettings: [LinkerSetting] = [
     // Embeds Info.plist into __TEXT,__info_plist so `swift run` launches as a

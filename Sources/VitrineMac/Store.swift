@@ -41,9 +41,7 @@ final class StoreBridge: ObservableObject {
 @MainActor
 final class MenuState: ObservableObject {
     /// Which page the window is showing. Not remembered across launches: the
-    /// library is what the app is for, and reopening on the catalogue also
-    /// reopened on a title bar that hadn't settled — the hairline under the
-    /// title, which nothing but a page change would clear.
+    /// library is what the app is for.
     @Published var catalogueShown = false
     /// Raised to put the window's "add a build you already have" dialog up.
     @Published var addingBuild = false

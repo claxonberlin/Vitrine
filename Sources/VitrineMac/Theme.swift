@@ -20,11 +20,7 @@ enum Theme {
     static let rowStroke = Color.primary.opacity(0.07)
     static let rowHoverFill = Color.primary.opacity(0.06)
 
-    /// The plain grey macOS puts behind a Finder window — the window's ground
-    /// now that the splash artwork no longer fills it. The system's own
-    /// semantic colour rather than a fixed value, so it is #ECECEC in light
-    /// appearance and the matching deep grey in dark, with no second
-    /// definition to keep in step.
+    /// AppKit's semantic window grey, for the Glass Lab's backdrop.
     static let windowBackground = Color(nsColor: .windowBackgroundColor)
 
     /// The card behind a build whose splash artwork isn't available — a

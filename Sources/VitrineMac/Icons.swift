@@ -1,48 +1,24 @@
 import SwiftUI
-import AppKit
 
-/// The bundled line-icon set.
-///
-/// AppKit reads SVG into a vector image rep, so the shipped file is the
-/// designer's original and it stays crisp at any size. Marking it a template
-/// hands the ink colour to SwiftUI, which is why there is one file per icon
-/// instead of a pre-tinted variant per appearance.
-enum Icon: String {
-    case addBuild = "folder-add"
-    case library = "apps"
-    case catalogue = "book-open"
+/// The glyphs the window draws, all SF Symbols — the same set the toolbar
+/// uses, so every icon carries the system's own weight and rendering.
+enum Icon {
+    case catalogue
     case download
-    case update = "circle-arrow-up"
-    case trash = "delete"
-    case more = "options-horizontal"
-    case star = "favorite-fill"
+    case update
+    case trash
+    case more
+    case star
 
-    /// Rendered in the current foreground style. Missing artwork yields nil so
-    /// a broken resource bundle leaves a gap rather than taking the app down.
-    @MainActor
-    var image: Image? {
-        guard let nsImage = Self.cache.image(for: rawValue) else { return nil }
-        return Image(nsImage: nsImage)
-    }
-
-    private static let cache = IconCache()
-}
-
-/// Loading an SVG goes through Core Graphics, so each icon is read once and
-/// kept — the toolbar and every catalogue row ask for the same few files.
-@MainActor
-private final class IconCache {
-    private var images: [String: NSImage] = [:]
-
-    func image(for name: String) -> NSImage? {
-        if let cached = images[name] { return cached }
-        guard let url = Bundle.module.resourceURL?
-                .appendingPathComponent("Icons/\(name).svg"),
-              let image = NSImage(contentsOf: url)
-        else { return nil }
-        image.isTemplate = true
-        images[name] = image
-        return image
+    var systemName: String {
+        switch self {
+        case .catalogue: "book"
+        case .download: "arrow.down.to.line"
+        case .update: "arrow.up"
+        case .trash: "trash"
+        case .more: "ellipsis"
+        case .star: "star.fill"
+        }
     }
 }
 
@@ -52,13 +28,10 @@ struct IconView: View {
     var size: CGFloat = Theme.Metrics.iconSize
 
     var body: some View {
-        Group {
-            if let image = icon.image {
-                image.resizable().interpolation(.high)
-            } else {
-                Color.clear
-            }
-        }
-        .frame(width: size, height: size)
+        Image(systemName: icon.systemName)
+            // Sized as text rather than stretched, so the symbol keeps its
+            // designed stroke weight at every size.
+            .font(.system(size: size * 0.8, weight: .medium))
+            .frame(width: size, height: size)
     }
 }

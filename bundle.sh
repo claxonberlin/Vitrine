@@ -18,7 +18,15 @@ ICON="$ROOT/Resources/AppIcon.icns"
 INFO_PLIST="$ROOT/Resources/Info.plist"
 
 echo "→ Building ($CONFIG)…"
-swift build -c "$CONFIG"
+# SwiftPM stamps the binary's SDK version with its deployment target, and
+# AppKit keys the current design on that stamp: stamped `sdk 15.0`, the app
+# gets the compatibility look — an opaque title bar and toolbar buttons with
+# no glass. Xcode stamps the SDK it actually built against; so does this. The
+# minimum has to match `platforms` in Package.swift and Info.plist.
+MIN_MACOS="15.0"
+SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
+swift build -c "$CONFIG" \
+    -Xlinker -platform_version -Xlinker macos -Xlinker "$MIN_MACOS" -Xlinker "$SDK_VERSION"
 
 BIN="$ROOT/.build/$CONFIG/$APP_NAME"
 if [[ ! -f "$BIN" ]]; then
@@ -33,11 +41,10 @@ cp "$BIN" "$APP/Contents/MacOS/$APP_NAME"
 cp "$ICON" "$APP/Contents/Resources/AppIcon.icns"
 cp "$INFO_PLIST" "$APP/Contents/Info.plist"
 
-# SwiftPM emits each target's declared resources — the SVG icon set, the
-# splash paintings — as a side-by-side bundle. Bundle.module looks in the main
-# bundle's resource path, so every one of them has to travel into the .app;
-# without this the toolbar icons render as blank space and the cards lose
-# their artwork.
+# SwiftPM emits each target's declared resources — the splash paintings — as
+# a side-by-side bundle. Bundle.module looks in the main bundle's resource
+# path, so every one of them has to travel into the .app; without this the
+# cards lose their artwork.
 shopt -s nullglob
 RESOURCE_BUNDLES=("$ROOT/.build/$CONFIG/"*.bundle)
 shopt -u nullglob

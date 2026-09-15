@@ -2,19 +2,16 @@ import SwiftUI
 import VitrineKit
 
 /// The whole app in one window: the installed library fills it, and the
-/// catalogue slides in from the trailing edge as a second page, the width
-/// of the window itself rather than a strip along its side.
+/// catalogue slides in from the trailing edge as a second page.
 ///
 /// It isn't a real split — the window never resizes, and the library never
 /// gives up any of its own width — but it reads like one: opening the
 /// catalogue pushes the library most of the way out of its path rather than
 /// merely covering it, so the two feel like adjacent pages rather than a
-/// panel laid on top. Both travel by exactly the same distance,
-/// `catalogueTravel` — 85% of the window's own current width, not the
-/// catalogue's, so at rest the library still shows a sliver of itself down
-/// the leading 15%, the same small overlap a real page transition leaves
-/// behind, and the catalogue is that same 85% wide rather than some
-/// separately-chosen sidebar width.
+/// panel laid on top. Both travel by exactly the same distance, a fixed
+/// fraction of the window's own current width, so at rest the library still
+/// shows a sliver of itself down the leading edge, and the catalogue is that
+/// same width rather than some separately-chosen sidebar width.
 ///
 /// Branches are not tabs. Both lists show every branch at once under a plain
 /// heading, so nothing is hidden behind a control you have to discover first.
@@ -36,15 +33,42 @@ struct ContentView: View {
     /// is — all the same fraction of whatever the window measures itself
     /// at, so the page keeps reading as "almost the whole window" at any
     /// size instead of a fixed-width strip that a wide window would dwarf.
-    private static let catalogueTravelFraction: CGFloat = 0.70
+    private static let catalogueTravelFraction: CGFloat = 0.72
 
     var body: some View {
+        // A navigation stack at the root, the structure Apple's Landmarks
+        // sample uses for a titled page.
+        NavigationStack {
+            pages
+                // The catalogue renames the window rather than carrying a
+                // heading of its own, the way a second page would.
+                .navigationTitle(showingCatalogue ? "Catalogue" : "Vitrine")
+                .toolbar {
+                    addBuildAction
+                    catalogueToggle
+                }
+        }
+        .frame(minWidth: Theme.Metrics.windowMinWidth,
+               minHeight: Theme.Metrics.windowMinHeight)
+        .task { await store.refreshAll() }
+        .fileImporter(
+            isPresented: $menu.addingBuild,
+            allowedContentTypes: [.application]
+        ) { result in
+            if case .success(let url) = result {
+                store.addCustomBuild(at: url, into: Self.customBuildBranch)
+            }
+        }
+        .animation(.smooth(duration: 0.3), value: showingCatalogue)
+    }
+
+    /// The library, with the catalogue sliding in over its trailing edge.
+    private var pages: some View {
         GeometryReader { geometry in
             let travel = geometry.size.width * Self.catalogueTravelFraction
 
+            // No ground of its own: the window's background shows through.
             ZStack(alignment: .topTrailing) {
-                Theme.windowBackground.ignoresSafeArea()
-
                 LibraryPane()
                 // Slides left to make room for the incoming page rather than
                 // staying put underneath it — see the type's own doc comment.
@@ -54,9 +78,7 @@ struct ContentView: View {
                 // rows you can no longer read, so they stop taking clicks and
                 // drop out of the keyboard and VoiceOver order — the same
                 // deal the catalogue gets while it is the one parked off the
-                // other edge. Dimming it as well would read nicely and cost
-                // a full-window offscreen composite of every material card on
-                // every frame of the slide, which is not a trade worth making.
+                // other edge.
                 .allowsHitTesting(!showingCatalogue)
                 .accessibilityHidden(showingCatalogue)
 
@@ -64,12 +86,8 @@ struct ContentView: View {
                 // offset. A conditional view with a `move` transition only
                 // animated the way in: SwiftUI tore the pane down on the way
                 // out before the slide could play, so hiding the catalogue
-                // snapped.
-                // Parked, it sits exactly its own width past the trailing
-                // edge, so the window already clips it away and it needs no
-                // fade to hide behind — which matters, because animating one
-                // would composite the whole page offscreen on every frame of
-                // a slide that is otherwise a plain transform.
+                // snapped. Parked, it sits exactly its own width past the
+                // trailing edge, so the window already clips it away.
                 CataloguePane()
                     .frame(width: travel)
                     .frame(maxHeight: .infinity)
@@ -83,160 +101,35 @@ struct ContentView: View {
             // page it was about.
             .overlay(alignment: .top) { ErrorBanner() }
         }
-        .frame(minWidth: Theme.Metrics.windowMinWidth,
-               minHeight: Theme.Metrics.windowMinHeight)
-        .toolbar {
-            titleItem
-            addBuildAction
-            catalogueToggle
-        }
-        .task { await store.refreshAll() }
-        .fileImporter(
-            isPresented: $menu.addingBuild,
-            allowedContentTypes: [.application]
-        ) { result in
-            if case .success(let url) = result {
-                store.addCustomBuild(at: url, into: Self.customBuildBranch)
-            }
-        }
-        .animation(.smooth(duration: 0.3), value: showingCatalogue)
     }
 
     // MARK: - Toolbar
 
-    /// Centres the title over the content rather than letting AppKit pin it to
-    /// the leading edge, which is how the window has always looked. The system
-    /// title is off — see `windowToolbarStyle` on the scene.
-    @ToolbarContentBuilder
-    private var titleItem: some ToolbarContent {
-        ToolbarItem(placement: .principal) { titleLabel }
-            .sharedBackgroundHidden()
-    }
-
-    /// Stands in for the catalogue's own title now that it doesn't have
-    /// one — the same way a real second page would rename the window
-    /// rather than relabel itself. See `CataloguePane`'s doc comment.
-    private var titleLabel: some View {
-        Text(showingCatalogue ? "Catalogue" : "Vitrine")
-            .font(.system(size: 13, weight: .semibold))
-            .contentTransition(.opacity)
-            .animation(.smooth(duration: 0.2), value: showingCatalogue)
-            .accessibilityAddTraits(.isHeader)
-    }
+    // Plain buttons labelled with a symbol image, declared the way Landmarks
+    // declares its own, so the system draws them on its toolbar glass.
 
     @ToolbarContentBuilder
     private var addBuildAction: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            ToolbarIconButton(icon: .addBuild,
-                              label: "Add a Blender build you already have") {
+        ToolbarItem {
+            Button {
                 menu.addingBuild = true
+            } label: {
+                Label("Add Build", systemImage: "folder.badge.plus")
             }
+            .help("Add a Blender build you already have")
         }
-        .sharedBackgroundHidden()
     }
 
-    /// This one sits a few points closer to the window's trailing edge than
-    /// to its top — confirmed, not assumed: a running build measures 0pt to
-    /// the top and 4pt to the trailing edge, and that gap holds regardless
-    /// of anything this file adds to the item's own content. NSToolbar
-    /// lays each item out inside its own fixed, opaque margins; padding
-    /// added here doesn't reach it. Moving the buttons out of the toolbar
-    /// entirely and drawing them as ordinary window content *does* get
-    /// pixel-exact concentric placement — measured at exactly 12pt both
-    /// ways — but that band of the window is native title-bar chrome, and
-    /// AppKit routes every click there to window dragging before SwiftUI's
-    /// content ever sees it, whether or not something is visually drawn
-    /// over it. A button that looks right but can't be clicked is worse
-    /// than one that's four points off, so this stays a toolbar item.
-    /// Fixing the asymmetry for real means giving up the native unified
-    /// title bar in favour of a fully custom one — a bigger change than
-    /// this one warrants on its own.
     @ToolbarContentBuilder
     private var catalogueToggle: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            ToolbarIconButton(icon: .catalogue,
-                              label: showingCatalogue ? "Hide the catalogue" : "Show the catalogue",
-                              toggledOn: showingCatalogue) {
+        ToolbarItem {
+            Button {
                 menu.catalogueShown.toggle()
+            } label: {
+                Label(showingCatalogue ? "Hide Catalogue" : "Show Catalogue", systemImage: "book")
+                    .symbolVariant(showingCatalogue ? .fill : .none)
             }
-        }
-        .sharedBackgroundHidden()
-    }
-}
-
-
-/// The catalogue toggle and the add-build button: `CircleIconButton` at the
-/// smaller size the title bar wants, with the toggle's resting state left
-/// unfilled so plain glass reads as "off" and the tinted fill as "on" — the
-/// system's own vocabulary for a toggle sitting in a glass toolbar.
-private struct ToolbarIconButton: View {
-    let icon: Icon
-    let label: String
-    /// Set only by a control that has an on and an off state, so a plain
-    /// action button isn't announced as a toggle.
-    var toggledOn: Bool? = nil
-    let action: () -> Void
-
-    private static let diameter = Theme.Metrics.actionHeight
-    private static let iconSize = Theme.Metrics.actionIconSize
-
-    var body: some View {
-        CircleIconButton(icon: icon, label: label, filled: toggledOn == true,
-                         diameter: Self.diameter, iconSize: Self.iconSize,
-                         action: action)
-            .accessibilityAddTraits(traits)
-    }
-
-    private var traits: AccessibilityTraits {
-        switch toggledOn {
-        case .none: []
-        case .some(true): [.isToggle, .isSelected]
-        case .some(false): .isToggle
-        }
-    }
-}
-
-extension ToolbarContent {
-    /// Opts a toolbar item out of macOS 26's automatic glass backing, which
-    /// otherwise fuses adjacent items into one shared capsule — the two
-    /// buttons here read as separate controls sitting close together, not as
-    /// halves of a single pill. Title, add-build and the catalogue toggle all
-    /// use this, so nothing in the toolbar ever merges by accident. A no-op
-    /// before macOS 26, which has no shared backing to opt out of.
-    @ToolbarContentBuilder
-    func sharedBackgroundHidden() -> some ToolbarContent {
-        if #available(macOS 26.0, *) {
-            self.sharedBackgroundVisibility(.hidden)
-        } else {
-            self
-        }
-    }
-}
-
-extension View {
-    /// The soft scroll-edge dissolve where rows pass under a glass header —
-    /// macOS 26+; a no-op below that, since there's no real scroll-edge
-    /// glass to style on older systems. (`ScrollEdgeEffectStyle` itself is
-    /// 26-only, so it can't appear in this method's own signature — the
-    /// choice of style lives inside, not in a parameter.)
-    @ViewBuilder
-    func softScrollEdgeCompat(for edges: Edge.Set) -> some View {
-        if #available(macOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.soft, for: edges)
-        } else {
-            self
-        }
-    }
-
-    /// No scroll-edge effect at this edge — for a scroll view that doesn't
-    /// span the window, where the system falls back to a hairline rather than
-    /// a blur. Also a no-op below macOS 26, which draws neither.
-    @ViewBuilder
-    func scrollEdgeEffectHiddenCompat(for edges: Edge.Set) -> some View {
-        if #available(macOS 26.0, *) {
-            self.scrollEdgeEffectHidden(true, for: edges)
-        } else {
-            self
+            .help(showingCatalogue ? "Hide the catalogue" : "Show the catalogue")
         }
     }
 }
@@ -262,10 +155,6 @@ struct LibraryPane: View {
                 // rather than the list jumping by a row's height twice.
                 .animation(.smooth(duration: 0.3), value: store.pendingInstalls)
             }
-            .scrollContentBackground(.hidden)
-            // The system's own soft scroll-edge dissolve, blurring rows as
-            // they pass under the toolbar.
-            .softScrollEdgeCompat(for: .top)
         }
     }
 
@@ -294,9 +183,7 @@ struct LibraryPane: View {
             ScrollView {
                 tip.frame(minHeight: proxy.size.height)
             }
-            .scrollContentBackground(.hidden)
             .scrollBounceBehavior(.basedOnSize)
-            .softScrollEdgeCompat(for: .top)
         }
     }
 

@@ -151,7 +151,6 @@ Linux unpack path, which only runs when the tests are built on Linux.
 | `Sources/VitrineKit/Installer.swift` | download → unpack → library layout |
 | `Sources/VitrineKit/BuildStore.swift` | the view model both front ends drive |
 | `Sources/VitrineKit/Platform/` | the per-OS half |
-| `Sources/VitrineMac/Resources/Icons/` | SVG icon sources; the macOS target ships them as-is |
 | `packaging/fedora/` | the RPM spec, desktop entry, AppStream metadata and icons |
 
 Installed builds live under `⟨library⟩/⟨branch⟩/⟨build⟩/`, each with a

@@ -59,9 +59,6 @@ struct VitrineApp: App {
         .defaultSize(width: Theme.Metrics.windowMinWidth,
                      height: Theme.Metrics.windowDefaultHeight)
         .windowResizability(.contentMinSize)
-        // The title is drawn as a principal toolbar item so it stays centred
-        // over the content, which is how the window has always looked.
-        .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             // No documents to make, but there is one thing to open.
             CommandGroup(replacing: .newItem) {
