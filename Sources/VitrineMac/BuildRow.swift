@@ -191,15 +191,14 @@ struct InstalledRow: View {
     private var rowActions: some View {
         Button("Open New Instance") { store.launch(build, newInstance: true) }
             .help("Start another Blender \(build.version), even if one is already open")
-        Button("Release Notes") { store.openInBrowser(build.releaseNotesURL.absoluteString) }
-            .help("What's new in Blender \(Version(build.version)?.minorKey ?? build.version)")
-        Divider()
         Button(build.pinned ? "Unstar" : "Star") {
             withAnimation(.smooth(duration: 0.3)) { store.toggleStar(build) }
         }
         .help(build.pinned
               ? "Stop treating this build as the system Blender"
               : "Star — opens .blend files, and puts `blender` on your PATH")
+        Button("Release Notes") { store.openInBrowser(build.releaseNotesURL.absoluteString) }
+            .help("What's new in Blender \(Version(build.version)?.minorKey ?? build.version)")
         Button("Reveal in \(store.fileManagerName)") { store.reveal(build) }
         Divider()
         // A custom build is the user's own copy — Vitrine only forgets the
