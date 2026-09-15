@@ -106,10 +106,14 @@ struct MacOSIntegration: PlatformIntegration {
     /// account, so Blender answers for its own writes and Vitrine is never
     /// asked. Nothing is given up by it — the launch always succeeded anyway,
     /// with only the bytecode cache going unwritten.
-    func launch(_ buildPath: URL) throws {
+    ///
+    /// Every Blender shares one bundle identifier, so a plain `open -a` finds
+    /// whichever Blender is already running and brings *that* forward. `-n`
+    /// is what makes a second window of the same — or any — version.
+    func launch(_ buildPath: URL, newInstance: Bool) throws {
         let launcher = Process()
         launcher.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        launcher.arguments = ["-a", buildPath.path]
+        launcher.arguments = (newInstance ? ["-n"] : []) + ["-a", buildPath.path]
         launcher.standardOutput = FileHandle.nullDevice
         launcher.standardError = FileHandle.nullDevice
         try launcher.run()

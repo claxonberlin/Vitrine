@@ -130,7 +130,9 @@ struct LinuxIntegration: PlatformIntegration {
         return String(match.output.1)
     }
 
-    func launch(_ buildPath: URL) throws {
+    /// Spawning the binary always starts a new process, so `newInstance`
+    /// changes nothing here.
+    func launch(_ buildPath: URL, newInstance: Bool) throws {
         guard let exe = executable(in: buildPath) else {
             throw InstallError.noBuildInArchive
         }

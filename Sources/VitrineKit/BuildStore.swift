@@ -461,9 +461,9 @@ public final class BuildStore {
         pendingInstalls.removeAll { $0.id == build.id }
     }
 
-    public func launch(_ build: InstalledBuild) {
+    public func launch(_ build: InstalledBuild, newInstance: Bool = false) {
         do {
-            try installer.launch(build)
+            try installer.launch(build, newInstance: newInstance)
         } catch {
             lastError = error.localizedDescription
             return

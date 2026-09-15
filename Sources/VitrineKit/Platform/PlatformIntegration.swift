@@ -64,7 +64,9 @@ public protocol PlatformIntegration: Sendable {
     /// Best-effort version string for a build the user added by hand.
     func version(ofBuildAt url: URL) async -> String?
 
-    func launch(_ buildPath: URL) throws
+    /// Starts the build. `newInstance` asks for a fresh process even when
+    /// this build is already running, rather than bringing that one forward.
+    func launch(_ buildPath: URL, newInstance: Bool) throws
     func reveal(_ url: URL) async
     /// Opens a web link in the user's browser.
     func openURL(_ url: URL) async

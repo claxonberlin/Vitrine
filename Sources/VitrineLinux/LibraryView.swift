@@ -61,6 +61,12 @@ struct InstalledRow: View {
                          : "Star — opens .blend files, and puts `blender` on your PATH")
 
                 Menu(icon: .default(icon: .viewMore)) {
+                    MenuSection {
+                        MenuButton("Open New Instance") { store.launch(build, newInstance: true) }
+                        MenuButton("Release Notes") {
+                            store.openInBrowser(build.releaseNotesURL.absoluteString)
+                        }
+                    }
                     MenuButton("Reveal in \(store.fileManagerName)") { store.reveal(build) }
                     MenuButton(build.pinned ? "Unstar" : "Star") { store.toggleStar(build) }
                     MenuSection {

@@ -131,8 +131,8 @@ public final class Installer: Sendable {
         )
     }
 
-    public func launch(_ build: InstalledBuild) throws {
-        try platform.launch(build.buildPath)
+    public func launch(_ build: InstalledBuild, newInstance: Bool = false) throws {
+        try platform.launch(build.buildPath, newInstance: newInstance)
     }
 
     public func reveal(_ build: InstalledBuild) async {

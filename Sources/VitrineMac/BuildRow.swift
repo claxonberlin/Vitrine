@@ -189,6 +189,11 @@ struct InstalledRow: View {
 
     @ViewBuilder
     private var rowActions: some View {
+        Button("Open New Instance") { store.launch(build, newInstance: true) }
+            .help("Start another Blender \(build.version), even if one is already open")
+        Button("Release Notes") { store.openInBrowser(build.releaseNotesURL.absoluteString) }
+            .help("What's new in Blender \(Version(build.version)?.minorKey ?? build.version)")
+        Divider()
         Button(build.pinned ? "Unstar" : "Star") {
             withAnimation(.smooth(duration: 0.3)) { store.toggleStar(build) }
         }

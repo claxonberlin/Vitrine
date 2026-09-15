@@ -316,6 +316,16 @@ public struct InstalledBuild: Identifiable, Hashable, Codable, Sendable {
     /// given metadata files, and persisted in the config store instead of
     /// being rediscovered from the library folder.
     public var isCustom: Bool { riskId == Self.customRiskID }
+
+    /// The release notes for this build's X.Y series on Blender's developer
+    /// docs, which keep one page per series — a daily's page is the notes
+    /// being written for the release it will become. A hand-added build whose
+    /// name has no series to look up gets the index of every series instead.
+    public var releaseNotesURL: URL {
+        let index = "https://developer.blender.org/docs/release_notes/"
+        guard let key = Version(version)?.minorKey else { return URL(string: index)! }
+        return URL(string: index + key + "/")!
+    }
 }
 
 public enum DownloadState: Equatable, Sendable {
