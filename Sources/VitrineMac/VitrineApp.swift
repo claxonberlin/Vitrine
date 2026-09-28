@@ -32,6 +32,7 @@ struct VitrineApp: App {
         self.bridge = bridge
         self.menu = MenuState(store: bridge.store)
         MenuBarItem.shared.store = bridge.store
+        UpdateNotifier.shared.store = bridge.store
     }
 
     var body: some Scene {
@@ -63,6 +64,7 @@ struct VitrineApp: App {
                     window.makeFirstResponder(nil)
                 })
         }
+        .defaultLaunchBehavior(MainWindow.launchedAtLogin ? .suppressed : .presented)
         .defaultSize(width: Theme.Metrics.windowMinWidth,
                      height: Theme.Metrics.windowDefaultHeight)
         .windowResizability(.contentMinSize)
@@ -194,7 +196,9 @@ struct VitrineApp: App {
 /// `__TEXT,__info_plist` section. Harmless inside the bundled app.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.regular)
+        // Read while the launch event is still the current one.
+        NSApp.setActivationPolicy(MainWindow.launchedAtLogin ? .accessory : .regular)
+        UpdateNotifier.shared.install()
         // One window, and nothing sensible to put in a second tab of it —
         // without this AppKit still offers "Show Tab Bar" and "Merge All
         // Windows" in the View and Window menus.
@@ -202,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.activate(ignoringOtherApps: true)
+        if !MainWindow.launchedAtLogin { NSApp.activate(ignoringOtherApps: true) }
         MenuBarItem.shared.install()
         // SwiftUI rebuilds the whole menu bar whenever its commands
         // re-evaluate, and puts Edit back every time, so this can't be done

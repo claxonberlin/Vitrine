@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import VitrineKit
+import ServiceManagement
 
 /// Where the app lives: an item in the menu bar that outlasts the window.
 ///
@@ -96,6 +97,9 @@ final class MenuBarItem: NSObject, NSMenuDelegate {
         menu.addItem(openInstanceItem(store))
         menu.addItem(.separator())
 
+        menu.addItem(loginItem())
+        menu.addItem(.separator())
+
         let open = NSMenuItem(title: NSLocalizedString("Open Vitrine", comment: ""),
                               action: #selector(openWindow), keyEquivalent: "")
         open.target = self
@@ -186,6 +190,36 @@ final class MenuBarItem: NSObject, NSMenuDelegate {
         return parent
     }
 
+    /// The app's own entry in System Settings › General › Login Items,
+    /// through `SMAppService` — the same switch that list shows, so the two
+    /// never disagree. Read fresh each time: the user can flip it there.
+    private func loginItem() -> NSMenuItem {
+        let item = NSMenuItem(title: NSLocalizedString("Open at Login", comment: ""),
+                              action: #selector(toggleLogin), keyEquivalent: "")
+        item.target = self
+        switch SMAppService.mainApp.status {
+        case .enabled: item.state = .on
+        // Registered, but switched off in System Settings: only the user can
+        // turn it back on, so the item says so and takes them there.
+        case .requiresApproval: item.state = .mixed
+        default: item.state = .off
+        }
+        return item
+    }
+
+    @objc private func toggleLogin() {
+        let service = SMAppService.mainApp
+        do {
+            switch service.status {
+            case .enabled: try service.unregister()
+            case .requiresApproval: SMAppService.openSystemSettingsLoginItems()
+            default: try service.register()
+            }
+        } catch {
+            store?.lastError = error.localizedDescription
+        }
+    }
+
     private struct UpdateRequest {
         let build: InstalledBuild
         let target: RemoteBuild
@@ -223,6 +257,15 @@ final class MainWindow {
     var openAction: OpenWindowAction?
 
     static let sceneID = "library"
+
+    /// True when the system started the app as a login item. Then it comes
+    /// up in the menu bar alone: nobody asked to see the window.
+    static let launchedAtLogin: Bool = {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent else { return false }
+        return event.eventID == kAEOpenApplication
+            && event.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue
+                == keyAELaunchedAsLogInItem
+    }()
 
     private weak var window: NSWindow?
     private var closeObserver: NSObjectProtocol?

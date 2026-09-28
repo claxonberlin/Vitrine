@@ -27,3 +27,10 @@
 "Stable" = "Stabiel";
 "Experimental" = "Experimenteel";
 "You're Up to Date" = "Je bent up-to-date";
+"Open at Login" = "Open bij inloggen";
+
+/* Update notifications. */
+"Update" = "Bijwerken";
+"Blender %@ is available" = "Blender %@ is beschikbaar";
+"A newer daily build is ready." = "Er is een nieuwere dagelijkse build.";
+"Update from %@." = "Bijwerken vanaf %@.";

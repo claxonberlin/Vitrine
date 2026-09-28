@@ -27,3 +27,10 @@
 "Stable" = "Estável";
 "Experimental" = "Experimental";
 "You're Up to Date" = "Está atualizado";
+"Open at Login" = "Abrir ao iniciar sessão";
+
+/* Update notifications. */
+"Update" = "Atualizar";
+"Blender %@ is available" = "Blender %@ está disponível";
+"A newer daily build is ready." = "Há uma build diária mais recente.";
+"Update from %@." = "Atualizar a partir de %@.";
