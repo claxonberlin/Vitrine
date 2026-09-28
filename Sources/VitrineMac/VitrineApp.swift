@@ -31,16 +31,22 @@ struct VitrineApp: App {
         let bridge = StoreBridge()
         self.bridge = bridge
         self.menu = MenuState(store: bridge.store)
+        MenuBarItem.shared.store = bridge.store
     }
 
     var body: some Scene {
-        WindowGroup {
+        // A single `Window` rather than a `WindowGroup`: there is only ever
+        // one, and closing it no longer quits — it goes back to the menu bar
+        // item, which reopens this same scene by its id.
+        Window("Vitrine", id: MainWindow.sceneID) {
             ContentView()
                 .fullScreenDisabled()
                 .environmentObject(bridge)
                 .environmentObject(menu)
                 .environmentObject(rowSplash)
+                .background(OpenWindowCapture())
                 .background(WindowConfigurator { window in
+                    MainWindow.shared.adopt(window)
                     // Asked again every time the window is fitted, so the
                     // answer follows the library as builds come and go.
                     FrameKeeper.shared.attach(to: window) {
@@ -197,6 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate(ignoringOtherApps: true)
+        MenuBarItem.shared.install()
         // SwiftUI rebuilds the whole menu bar whenever its commands
         // re-evaluate, and puts Edit back every time, so this can't be done
         // once at launch. The app tells us when it is about to update; the
@@ -260,12 +267,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             main.removeItem(edit)
         }
 
-        // Close, and Close All with it: there is one window, closing it
-        // quits, and the app already has Quit for that. `closeAll:` has no
-        // symbol to name — it is AppKit's own, reachable only as a string.
-        let closing: Set<Selector> = [
-            #selector(NSWindow.performClose(_:)), Selector(("closeAll:"))
-        ]
+        // Close All: there is one window, and Close already puts it away.
+        // `closeAll:` has no symbol to name — it is AppKit's own, reachable
+        // only as a string.
+        let closing: Set<Selector> = [Selector(("closeAll:"))]
         for item in main.items {
             guard let submenu = item.submenu else { continue }
             for child in submenu.items
@@ -287,8 +292,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         main.insertItem(item, at: help - 1)
     }
 
+    /// The menu bar item is the app; the window is one way into it.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        false
+    }
+
+    /// Opening the app again — from Finder, Spotlight or the Dock — while it
+    /// sits in the menu bar brings the window back.
+    func applicationShouldHandleReopen(_ sender: NSApplication,
+                                       hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { MainWindow.shared.show() }
+        return true
     }
 }
 
@@ -347,7 +361,6 @@ final class FrameKeeper {
     static let shared = FrameKeeper()
 
     private static let key = "MainWindowFrame"
-    private var attached = false
 
     /// How tall the content wants to be, asked fresh each time the window is
     /// fitted rather than measured once at launch.
@@ -358,8 +371,9 @@ final class FrameKeeper {
     private weak var window: NSWindow?
 
     func attach(to window: NSWindow, contentHeight: @escaping () -> CGFloat) {
-        guard !attached else { return }
-        attached = true
+        // Once per window, and again for the next one: closing the window
+        // ends it, and reopening from the menu bar makes a new one.
+        guard window !== self.window else { return }
         self.contentHeight = contentHeight
         self.window = window
 

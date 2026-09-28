@@ -15,3 +15,15 @@
 "Daily Builds" = "Builds diárias";
 "LTS Releases" = "Versões LTS";
 "Support the Blender Foundation" = "Apoie a Blender Foundation";
+
+/* The menu bar item's menu. */
+"Open Vitrine" = "Abrir Vitrine";
+"Quit Vitrine" = "Encerrar Vitrine";
+"Update Starred Build to %@" = "Atualizar build com estrela para %@";
+"Updating Starred Build…" = "A atualizar build com estrela…";
+"Open New Instance" = "Abrir nova instância";
+"Blender %@" = "Blender %@";
+"Daily" = "Diária";
+"Stable" = "Estável";
+"Experimental" = "Experimental";
+"You're Up to Date" = "Está atualizado";
