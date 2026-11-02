@@ -40,6 +40,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/$APP_NAME"
 cp "$ICON" "$APP/Contents/Resources/AppIcon.icns"
 cp "$INFO_PLIST" "$APP/Contents/Info.plist"
+cp "$ROOT/Resources/MenuBarIcon.png" "$APP/Contents/Resources/MenuBarIcon.png"
 
 # SwiftPM emits each target's declared resources — the splash paintings — as
 # a side-by-side bundle. Bundle.module looks in the main bundle's resource

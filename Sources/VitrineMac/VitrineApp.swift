@@ -64,7 +64,7 @@ struct VitrineApp: App {
                     window.makeFirstResponder(nil)
                 })
         }
-        .defaultLaunchBehavior(MainWindow.launchedAtLogin ? .suppressed : .presented)
+        .defaultLaunchBehavior(MainWindow.startsInMenuBar ? .suppressed : .presented)
         .defaultSize(width: Theme.Metrics.windowMinWidth,
                      height: Theme.Metrics.windowDefaultHeight)
         .windowResizability(.contentMinSize)
@@ -197,7 +197,7 @@ struct VitrineApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Read while the launch event is still the current one.
-        NSApp.setActivationPolicy(MainWindow.launchedAtLogin ? .accessory : .regular)
+        NSApp.setActivationPolicy(MainWindow.startsInMenuBar ? .accessory : .regular)
         UpdateNotifier.shared.install()
         // One window, and nothing sensible to put in a second tab of it —
         // without this AppKit still offers "Show Tab Bar" and "Merge All
@@ -206,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if !MainWindow.launchedAtLogin { NSApp.activate(ignoringOtherApps: true) }
+        if !MainWindow.startsInMenuBar { NSApp.activate(ignoringOtherApps: true) }
         MenuBarItem.shared.install()
         // SwiftUI rebuilds the whole menu bar whenever its commands
         // re-evaluate, and puts Edit back every time, so this can't be done

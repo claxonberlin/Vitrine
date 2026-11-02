@@ -20,7 +20,7 @@
 %global __brp_strip %{nil}
 
 Name:           vitrine
-Version:        1.1
+Version:        1.2
 Release:        1%{?dist}
 Summary:        Blender build manager
 
@@ -102,6 +102,8 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{appid}.metai
 %{_datadir}/icons/hicolor/*/apps/%{appid}.png
 
 %changelog
+* Mon Nov 02 2026 Claxon <claxon@users.noreply.github.com> - 1.2-1
+- Update to 1.2.
 * Tue Sep 15 2026 Claxon <claxon@users.noreply.github.com> - 1.1-1
 - Update to 1.1.
 

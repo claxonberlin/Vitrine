@@ -34,8 +34,13 @@ final class MenuBarItem: NSObject, NSMenuDelegate {
         guard item == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
-            let image = NSImage(systemSymbolName: "cube",
-                                accessibilityDescription: "Vitrine")
+            // The artwork is 44 px: two pixels per point at 22 pt. It ships
+            // loose in the bundle's Resources (see bundle.sh), so a bare
+            // `swift run` falls back to a symbol.
+            let image = Bundle.main.image(forResource: "MenuBarIcon")
+                ?? NSImage(systemSymbolName: "cube", accessibilityDescription: nil)
+            image?.size = NSSize(width: 22, height: 22)
+            image?.accessibilityDescription = "Vitrine"
             image?.isTemplate = true
             button.image = image
             button.target = self
@@ -258,14 +263,9 @@ final class MainWindow {
 
     static let sceneID = "library"
 
-    /// True when the system started the app as a login item. Then it comes
-    /// up in the menu bar alone: nobody asked to see the window.
-    static let launchedAtLogin: Bool = {
-        guard let event = NSAppleEventManager.shared().currentAppleEvent else { return false }
-        return event.eventID == kAEOpenApplication
-            && event.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue
-                == keyAELaunchedAsLogInItem
-    }()
+    /// The app always comes up in the menu bar alone: the window opens from
+    /// the menu bar item, or when the app is reopened.
+    static let startsInMenuBar = true
 
     private weak var window: NSWindow?
     private var closeObserver: NSObjectProtocol?
